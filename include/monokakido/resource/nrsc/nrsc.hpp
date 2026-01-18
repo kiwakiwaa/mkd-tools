@@ -4,15 +4,14 @@
 
 #pragma once
 
+#include "monokakido/resource/common.hpp"
 #include "nrsc_index.hpp"
 #include "nrsc_data.hpp"
 
 #include <expected>
 #include <filesystem>
 #include <iterator>
-#include <span>
 #include <string>
-#include <string_view>
 
 
 namespace fs = std::filesystem;
@@ -20,14 +19,6 @@ namespace fs = std::filesystem;
 namespace monokakido::resource
 {
     class NrscData;
-
-
-    // Resource item that can be returned to users
-    struct ResourceItem
-    {
-        std::string_view id;
-        std::span<const uint8_t> data;
-    };
 
 
     class Nrsc
@@ -66,6 +57,13 @@ namespace monokakido::resource
          * @return Number of resources
          */
         [[nodiscard]] size_t size() const noexcept;
+
+
+        /**
+         * @return true if there are no resources
+         */
+        [[nodiscard]] bool empty() const noexcept;
+
 
         class Iterator
         {

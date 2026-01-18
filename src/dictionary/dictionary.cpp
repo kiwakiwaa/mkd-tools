@@ -13,19 +13,27 @@ namespace monokakido::dictionary
 {
     std::expected<Dictionary, std::string> Dictionary::open(std::string_view dictId)
     {
-        auto& catalog = DictionaryCatalog::instance();
+        const auto& catalog = DictionaryCatalog::instance();
 
-        auto dictInfo = catalog.findById(dictId);
+        const auto dictInfo = catalog.findById(dictId);
         if (!dictInfo)
             return std::unexpected(std::format("Dictionary '{}' not found", dictId));
 
+        return openAtPath(dictInfo->path);
+    }
+
+
+    std::expected<Dictionary, std::string> Dictionary::openAtPath(const fs::path& path)
+    {
+        auto dictId = path.stem().string();
+
         auto metadata = DictionaryMetadata::loadFromPath(
-            dictInfo->path / "Contents" / (dictInfo->id + ".json")
+            path / "Contents" / (dictId + ".json")
         );
         if (!metadata)
-            return std::unexpected(std::format("Failed to load metadata: '{}'", metadata.error()));
+            return std::unexpected(std::format("Failed to load dictionary metadata: '{}'", metadata.error()));
 
-        auto paths = DictionaryPaths::create(dictInfo->path, metadata.value());
+        auto paths = DictionaryPaths::create(path, metadata.value());
         if (!paths)
             return std::unexpected(std::format("Failed to load paths: '{}'", paths.error()));
 
@@ -34,6 +42,42 @@ namespace monokakido::dictionary
             std::move(metadata.value()),
             std::move(paths.value())
         );
+    }
+
+
+    const std::string& Dictionary::id() const noexcept
+    {
+        return id_;
+    }
+
+
+    const DictionaryMetadata& Dictionary::metadata() const noexcept
+    {
+        return metadata_;
+    }
+
+
+    resource::Nrsc* Dictionary::mediaResources() noexcept
+    {
+        if (!mediaResources_ || mediaResources_->size() == 0)
+            return nullptr;
+
+        return &*mediaResources_;
+    }
+
+
+    const resource::Nrsc* Dictionary::mediaResources() const noexcept
+    {
+        if (!mediaResources_ || mediaResources_->size() == 0)
+            return nullptr;
+
+        return &*mediaResources_;
+    }
+
+
+    bool Dictionary::hasMediaResources() const noexcept
+    {
+        return mediaResources_ && mediaResources_->size() > 0;
     }
 
 
@@ -50,20 +94,20 @@ namespace monokakido::dictionary
         std::cout << std::format("Description: {}", metadata_.description().value_or("[Missing]")) << '\n';
         std::cout << std::format("Publisher: {}", metadata_.publisher().value_or("[Missing]")) << '\n';
         std::cout << std::format("Content dir: {}",
-                                 metadata_.contentDirectoryName().value_or(fs::path("[Missing]")).string()) << std::endl;
+                                 metadata_.contentDirectoryName().value_or(fs::path("[Missing]")).string()) <<
+                std::endl;
     }
 
 
-    void Dictionary::exportAllResources() const
+    std::expected<resource::ExportResult, std::string> Dictionary::exportAllResources() const
     {
-        auto nrsc = resource::Nrsc::open(paths_.resolve(PathType::Graphics));
-        if (!nrsc)
+        auto nrscResult = resource::Nrsc::open(paths_.resolve(PathType::Graphics));
+        if (!nrscResult)
         {
-            std::cerr << nrsc.error() << std::endl;
-            return;
+            return std::unexpected(nrscResult.error());
         }
 
-        auto exporter = resource::ResourceExporter({.outputDirectory = fs::path(std::getenv("HOME")) / "Downloads/out"});
-        auto result = exporter.exportAll(nrsc.value());
+        const auto exporter = resource::ResourceExporter(*nrscResult);
+        return exporter.exportAll({.outputDirectory = fs::path(std::getenv("HOME")) / "Downloads"});
     }
 }

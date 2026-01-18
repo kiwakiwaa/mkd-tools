@@ -54,6 +54,12 @@ namespace monokakido::resource
     }
 
 
+    bool Nrsc::empty() const noexcept
+    {
+        return index_.empty();
+    }
+
+
     Nrsc::Iterator::Iterator(const Nrsc* nrsc, const size_t index)
         : nrsc_(nrsc), index_(index)
     {

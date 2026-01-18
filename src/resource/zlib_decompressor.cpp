@@ -49,11 +49,6 @@ namespace monokakido::resource
         const size_t decompressedSize = stream.total_out;
         inflateEnd(&stream);
 
-        if (decompressedSize != expectedSize)
-        {
-            std::cerr << std::format("Decompressed size mismatch: expected {}, got {}", expectedSize, decompressedSize) << std::endl;
-        }
-
         return std::span<const uint8_t>(decompressBuffer_.data(), decompressedSize);
     }
 

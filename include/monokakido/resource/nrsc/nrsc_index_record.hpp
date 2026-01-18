@@ -25,7 +25,7 @@ namespace monokakido::resource
         uint16_t fileSequence;      // Which numbered .nrsc file (0.nrsc, 1.nrsc, etc.)
         uint32_t idStringOffset;    // Byte offset into the ID strings region
         uint32_t fileOffset;        // Byte offset within the target .nrsc file
-        uint32_t length;            // Decompressed size of the resource data
+        uint32_t length;            // size of the resource data
 
         [[nodiscard]] CompressionFormat compressionFormat() const;
         [[nodiscard]] size_t fileSeq() const noexcept;
