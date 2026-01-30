@@ -1,15 +1,13 @@
 //
-// Caoimheにより 2026/01/17 に作成されました。
+// kiwakiwaaにより 2026/01/17 に作成されました。
 //
 
 #pragma once
 
-#include "monokakido/resource/nrsc/nrsc.hpp"
 #include "export_options.hpp"
 
 #include <expected>
 #include <functional>
-#include <ranges>
 
 
 namespace monokakido::resource

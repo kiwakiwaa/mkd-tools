@@ -1,5 +1,5 @@
 //
-// Caoimheにより 2026/01/15 に作成されました。
+// kiwakiwaaにより 2026/01/15 に作成されました。
 //
 
 #include "monokakido/dictionary/paths.hpp"

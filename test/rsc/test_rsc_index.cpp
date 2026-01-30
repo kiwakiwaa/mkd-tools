@@ -1,5 +1,5 @@
 //
-// Caoimheにより 2026/01/19 に作成されました。
+// kiwakiwaaにより 2026/01/19 に作成されました。
 //
 
 #include <gtest/gtest.h>

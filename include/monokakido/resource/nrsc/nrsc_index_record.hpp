@@ -1,12 +1,11 @@
 //
-// Caoimheにより 2026/01/17 に作成されました。
+// kiwakiwaaにより 2026/01/17 に作成されました。
 //
 
 #pragma once
 
 #include "monokakido/resource/common.hpp"
 
-#include <iostream>
 #include <format>
 
 

@@ -1,8 +1,10 @@
 //
-// Caoimheにより 2026/01/18 に作成されました。
+// kiwakiwaaにより 2026/01/18 に作成されました。
 //
 
 #include "monokakido/resource/resource_loader.hpp"
+
+#include <iostream>
 
 namespace monokakido::resource
 {

@@ -5,7 +5,10 @@
 #pragma once
 
 #include "monokakido/resource/rsc/rsc_index.hpp"
+#include "monokakido/resource/rsc/rsc_keystore.hpp"
+#include "monokakido/resource/rsc/rsc_decryptor.hpp"
 #include "monokakido/resource/zlib_decompressor.hpp"
+#include "monokakido/core/platform/fs.hpp"
 
 #include <array>
 #include <filesystem>
@@ -63,7 +66,7 @@ namespace monokakido::resource
     * │ Item 1                                                          │
     * │  ├─ Header (4 or 8 bytes)                                       │
     * │  │   - Old format: [4-byte length]                              │
-    * │  │   - New format: [4-byte unknown][4-byte length]              │
+    * │  │   - New format: [4-byte zero][4-byte length]                 │
     * │  └─ Content (XML data, for dictionaries)                        │
     * ├─────────────────────────────────────────────────────────────────┤
     * │ Item 2                                                          │
@@ -119,7 +122,41 @@ namespace monokakido::resource
         /**
          * Private constructor - use load() to create instances
          */
-        explicit RscData(std::vector<RscResourceFile>&& files, std::optional<std::array<uint8_t, 32>>&& decryptionKey);
+        explicit RscData(std::vector<RscResourceFile>&& files, const std::optional<std::array<uint8_t, 32>>& decryptionKey);
+
+        /**
+         * Parse a single item from the currently loaded chunk
+         *
+         * @param offset Offset within chunkBuffer_ where item begins
+         * @return Span view of item content or error string
+         */
+        std::expected<std::span<const uint8_t>, std::string> parseItemFromChunk(size_t offset) const;
+
+        /**
+         * Load and decompress a chunk from disk
+         *
+         * @param globalOffset Global offset to the start of the chunk
+         * @return void on success, error string on failure
+         */
+        std::expected<void, std::string> loadChunk(size_t globalOffset);
+
+        /**
+         * Reads and processes the data chunk using the provided BinaryFile reader
+         * - reads the format marker and handles decryption and decompression as needed
+         *
+         * @param reader Binary file reader for reading the chunk
+         * @return Decoded data, or error string if failure
+         */
+        std::expected<std::vector<uint8_t>, std::string> readAndProcessChunk(platform::fs::BinaryFileReader& reader) const;
+
+        /**
+         * Helper function to read and decrypt chunk data from the new format
+         * - uses RscDecryptor to decrypt the data
+         *
+         * @param reader Binary file reader for reading the chunk
+         * @return Decrypted data, or error string if failure
+         */
+        std::expected<std::vector<uint8_t>, std::string> readAndDecryptData(platform::fs::BinaryFileReader& reader) const;
 
         /**
          * Discover all .rsc files in a directory
@@ -136,22 +173,6 @@ namespace monokakido::resource
          * @return (file reference, local offset) pair or error string
          */
         std::expected<std::pair<RscResourceFile&, size_t>, std::string> findFileByOffset(size_t globalOffset);
-
-        /**
-         * Load and decompress a chunk from disk
-         *
-         * @param globalOffset Global offset to the start of the chunk
-         * @return void on success, error string on failure
-         */
-        std::expected<void, std::string> loadChunk(size_t globalOffset);
-
-        /**
-         * Parse a single item from the currently loaded chunk
-         *
-         * @param offset Offset within chunkBuffer_ where item begins
-         * @return Span view of item content or error string
-         */
-        std::expected<std::span<const uint8_t>, std::string> parseItemFromChunk(size_t offset) const;
 
         std::vector<RscResourceFile> files_;
         std::optional<std::array<uint8_t, 32>> decryptionKey_;

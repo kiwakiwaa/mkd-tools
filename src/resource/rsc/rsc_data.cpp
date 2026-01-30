@@ -3,7 +3,6 @@
 //
 
 #include "monokakido/resource/rsc/rsc_data.hpp"
-#include "monokakido/core/platform/fs.hpp"
 
 #include <algorithm>
 #include <format>
@@ -30,8 +29,10 @@ namespace monokakido::resource
             globalOffset += files[i].length;
         }
 
-        // TODO: get optional decryption key here for the given dictId
-        return RscData{std::move(files), std::nullopt};
+        return RscData{
+            std::move(files),
+            RscKeyStore::getKey(dictId)
+        };
     }
 
 
@@ -49,10 +50,41 @@ namespace monokakido::resource
     }
 
 
-    RscData::RscData(std::vector<RscResourceFile>&& files, std::optional<std::array<uint8_t, 32> >&& decryptionKey)
+    RscData::RscData(std::vector<RscResourceFile>&& files, const std::optional<std::array<uint8_t, 32> >& decryptionKey)
         : files_(std::move(files)), decryptionKey_(decryptionKey)
     {
         decompressor_ = std::make_unique<ZlibDecompressor>();
+    }
+
+
+    std::expected<std::span<const uint8_t>, std::string> RscData::parseItemFromChunk(const size_t offset) const
+    {
+        if (offset >= chunkBuffer_.size())
+            return std::unexpected("Invalid offset within chunk");
+
+        const uint8_t* data = chunkBuffer_.data() + offset;
+        const size_t remaining = chunkBuffer_.size() - offset;
+
+        // Check minimum header size for old format (4 bytes)
+        if (remaining < 4)
+            return std::unexpected("Insufficient data for item length");
+
+        // new format has zero as first word
+        const uint32_t firstWord = *reinterpret_cast<const uint32_t*>(data);
+        const bool isNewFormat = firstWord == 0;
+
+        if (isNewFormat && remaining < 8)
+            return std::unexpected("Insufficient data for new format header");
+
+        const size_t headerSize = isNewFormat ? 8 : 4;
+        const size_t contentLength = isNewFormat
+                                         ? *reinterpret_cast<const uint32_t*>(data + 4)
+                                         : firstWord;
+
+        if (remaining < headerSize + contentLength)
+            return std::unexpected("Insufficient data for item content");
+
+        return std::span(data + headerSize, contentLength);
     }
 
 
@@ -74,48 +106,68 @@ namespace monokakido::resource
         if (auto seekResult = reader.seek(localOffset); !seekResult)
             return std::unexpected(seekResult.error());
 
-        // Read version/format marker (first 4 bytes)
+        // Read and process chunk data
+        auto dataResult = readAndProcessChunk(reader);
+        if (!dataResult)
+            return std::unexpected(dataResult.error());
+
+        chunkBuffer_ = std::move(*dataResult);
+        currentChunkOffset_ = globalOffset;
+        return {};
+    }
+
+
+    std::expected<std::vector<uint8_t>, std::string> RscData::readAndProcessChunk(
+        platform::fs::BinaryFileReader& reader) const
+    {
+        // Read format marker (first 4 bytes)
         auto versionResult = reader.read<uint32_t>();
         if (!versionResult)
             return std::unexpected(versionResult.error());
+
         uint32_t& version = versionResult.value();
-
-        std::vector<uint8_t> compressedData;
-
+        std::vector<uint8_t> data;
         if (version == 0)
         {
-            // New encrypted format
-            if (!decryptionKey_)
-                return std::unexpected("Encrypted data requires decryption key");
-            // implement decryption module later
+            auto decryptedData = readAndDecryptData(reader);
+            if (!decryptedData)
+                return std::unexpected(decryptedData.error());
+            data = std::move(*decryptedData);
         }
         else
         {
-            // Old format: version bytes are actually the length
-            const size_t compressedLength = version;
-            compressedData.resize(compressedLength);
-
-            if (auto result = reader.readBytes(compressedData); !result)
+            // version is the length in the old format
+            data.reserve(version);
+            if (auto result = reader.readBytes(data); !result)
                 return std::unexpected(result.error());
         }
 
-        // Decompress into chunkBuffer_
-        chunkBuffer_.clear();
-        if (ZlibDecompressor::isZlibCompressed(compressedData))
-        {
-            if (auto result = decompressor_->decompress(compressedData, compressedData.size()); !result)
-                return std::unexpected(result.error());
+        // decompress data if needed
+        if (!ZlibDecompressor::isZlibCompressed(data))
+            return data;
 
-            chunkBuffer_ = std::move(decompressor_->takeBuffer());
-        }
-        else
-        {
-            // Not compressed, use directly
-            chunkBuffer_ = std::move(compressedData);
-        }
+        if (auto result = decompressor_->decompress(data, data.size()); !result)
+            return std::unexpected(result.error());
 
-        currentChunkOffset_ = globalOffset;
-        return {};
+        return decompressor_->takeBuffer();
+    }
+
+
+    std::expected<std::vector<uint8_t>, std::string> RscData::readAndDecryptData(
+        platform::fs::BinaryFileReader& reader) const
+    {
+        if (!decryptionKey_)
+            return std::unexpected("Encrypted data requires decryption key");
+
+        auto lengthResult = reader.read<uint32_t>();
+        if (!lengthResult)
+            return std::unexpected(lengthResult.error());
+
+        std::vector<uint8_t> encryptedData(*lengthResult);
+        if (auto result = reader.readBytes(encryptedData); !result)
+            return std::unexpected(result.error());
+
+        return RscDecryptor::decrypt(encryptedData, *decryptionKey_);
     }
 
 
@@ -151,47 +203,6 @@ namespace monokakido::resource
             return std::unexpected(std::format("No .rsc files found in directory: {}", directoryPath.string()));
 
         return files;
-    }
-
-
-    std::expected<std::span<const uint8_t>, std::string> RscData::parseItemFromChunk(const size_t offset) const
-    {
-        if (offset >= chunkBuffer_.size())
-            return std::unexpected("Invalid offset within chunk");
-
-        const uint8_t* data = chunkBuffer_.data() + offset;
-        const size_t remaining = chunkBuffer_.size() - offset;
-
-        if (remaining < 4)
-            return std::unexpected("Insufficient data for item length");
-
-        // Detect format by checking for XML header
-        const bool isOldFormat = (remaining >= 5 && std::memcmp(data, "<?xml", 5) == 0) ||
-                                 (remaining >= 8 && std::memcmp(data + 4, "<?xm", 4) == 0);
-
-        size_t contentLength;
-        size_t contentStart;
-
-        if (isOldFormat)
-        {
-            // Old format: 4-byte length, then content
-            contentLength = *reinterpret_cast<const uint32_t*>(data);
-            contentStart = 4;
-        }
-        else
-        {
-            // New format: 8-byte header
-            if (remaining < 8)
-                return std::unexpected("Insufficient data for new format header");
-
-            contentLength = *reinterpret_cast<const uint32_t*>(data + 4);
-            contentStart = 8;
-        }
-
-        if (remaining < contentStart + contentLength)
-            return std::unexpected("Insufficient data for item content");
-
-        return std::span(data + contentStart, contentLength);
     }
 
 

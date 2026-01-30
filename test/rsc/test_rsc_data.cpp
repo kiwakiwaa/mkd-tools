@@ -25,8 +25,8 @@ protected:
             monokakido::dictionary::MONOKAKIDO_GROUP_ID);
         const auto dictionariesPath = containerPath / monokakido::dictionary::DICTIONARIES_PATH;
 
-        testDataPath_ = dictionariesPath / "YDP" / "Contents" / "YDP" / "contents";
-        dictId_ = "YDP";
+        testDataPath_ = dictionariesPath / "KJT" / "Contents" / "KJT" / "contents";
+        dictId_ = "KJT";
     }
 
     std::filesystem::path testDataPath_;
