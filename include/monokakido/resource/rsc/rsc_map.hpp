@@ -31,6 +31,9 @@ namespace monokakido::resource
         uint32_t zOffset; // Global offset to compressed chunk
         uint32_t ioffset; // Offset within decompressed chunk
 
+        // if iOffset is set to 0xFFFFFFFF, it means that compressed chunks are not used and the data
+        // should be read directly from the global offset. This is the case for fonts
+
         /**
          * Convert between endianness formats
          * Called automatically on big-endian systems

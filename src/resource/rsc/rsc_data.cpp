@@ -38,6 +38,12 @@ namespace monokakido::resource
 
     std::expected<std::span<const uint8_t>, std::string> RscData::get(const MapRecord& record)
     {
+        // Special case: intraBlock offset of 0xFFFFFFFF means direct data access (no chunk decompression is used)
+        if (record.ioffset == 0xFFFFFFFF)
+        {
+            return readDirectData(record.zOffset);
+        }
+
         // Load the chunk if we haven't loaded it yet or if it's a different chunk
         if (chunkBuffer_.empty() && record.zOffset != currentChunkOffset_)
         {
@@ -168,6 +174,39 @@ namespace monokakido::resource
             return std::unexpected(result.error());
 
         return RscDecryptor::decrypt(encryptedData, *decryptionKey_);
+    }
+
+
+    std::expected<std::span<const uint8_t>, std::string> RscData::readDirectData(size_t globalOffset)
+    {
+        auto fileAndOffset = findFileByOffset(globalOffset);
+        if (!fileAndOffset)
+            return std::unexpected(fileAndOffset.error());
+
+        auto& [file, localOffset] = *fileAndOffset;
+
+        auto readerResult = platform::fs::BinaryFileReader::open(file.filePath);
+        if (!readerResult)
+            return std::unexpected(readerResult.error());
+        auto& reader = *readerResult;
+
+        // Seek to the local offset
+        if (auto seekResult = reader.seek(localOffset); !seekResult)
+            return std::unexpected(seekResult.error());
+
+        // Read the data header to get length
+        auto lengthResult = reader.read<uint32_t>();
+        if (!lengthResult)
+            return std::unexpected(lengthResult.error());
+
+        uint32_t length = lengthResult.value();
+
+        // version is the length in old format
+        directDataBuffer_.resize(length);
+        if (auto result = reader.readBytes(directDataBuffer_); !result)
+            return std::unexpected(result.error());
+
+        return std::span<const uint8_t>(directDataBuffer_);
     }
 
 

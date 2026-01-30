@@ -246,6 +246,9 @@ namespace monokakido::resource
     {
         auto filePathResult = platform::fs::getValidatedFilePath(directoryPath, "contents.map");
         if (!filePathResult)
+            filePathResult = platform::fs::getValidatedFilePath(directoryPath, "font.map");
+
+        if (!filePathResult)
             return std::unexpected(filePathResult.error());
 
         auto reader = platform::fs::BinaryFileReader::open(*filePathResult);

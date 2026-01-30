@@ -52,9 +52,9 @@ namespace monokakido::resource
     *
     * Chunk Structure (per chunk in .rsc files):
     * ┌─────────────────────────────────────────────────────────────────┐
-    * │ Format Marker (4 bytes)                                         │
-    * │  - 0x00000000: New encrypted format                             │
-    * │  - Other values: Compressed data length (old format)            │
+    * │ Format Marker (4 bytes) - Can have two uses:                    │
+    * │  - 0x00000000: Indicates new encrypted format                   │
+    * │  - Compressed data length (old format)                          │
     * ├─────────────────────────────────────────────────────────────────┤
     * │ Compressed/Encrypted Data (variable length)                     │
     * │  - Old format: Direct zlib compression                          │
@@ -159,6 +159,14 @@ namespace monokakido::resource
         std::expected<std::vector<uint8_t>, std::string> readAndDecryptData(platform::fs::BinaryFileReader& reader) const;
 
         /**
+         * Reads data directly at global offset. Typically used for fonts
+         *
+         * @param globalOffset Offset in global address space
+         * @return Span view to the data
+         */
+        std::expected<std::span<const uint8_t>, std::string> readDirectData(size_t globalOffset);
+
+        /**
          * Discover all .rsc files in a directory
          *
          * @param directoryPath Directory to scan
@@ -178,6 +186,7 @@ namespace monokakido::resource
         std::optional<std::array<uint8_t, 32>> decryptionKey_;
         std::unique_ptr<ZlibDecompressor> decompressor_;
 
+        mutable std::vector<uint8_t> directDataBuffer_;
         mutable std::vector<uint8_t> chunkBuffer_;
         mutable size_t currentChunkOffset_ = SIZE_MAX;
     };

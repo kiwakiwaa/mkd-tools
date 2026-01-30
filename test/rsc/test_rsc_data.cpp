@@ -26,10 +26,12 @@ protected:
         const auto dictionariesPath = containerPath / monokakido::dictionary::DICTIONARIES_PATH;
 
         testDataPath_ = dictionariesPath / "KJT" / "Contents" / "KJT" / "contents";
-        dictId_ = "KJT";
+        testFontDataPath_ = dictionariesPath / "KOGO3" / "Contents" / "ozk5" / "fonts" / "YuMinPr6N-R";
+        dictId_ = "KOGO3";
     }
 
     std::filesystem::path testDataPath_;
+    std::filesystem::path testFontDataPath_;
     std::string dictId_;
 };
 
@@ -100,4 +102,33 @@ TEST_F(RscDataTest, GetRecordData)
     EXPECT_GT(data.size(), 0) << "Retrieved data should not be empty";
 }
 
+
+TEST_F(RscDataTest, GetFontData)
+{
+    auto dataResult = RscData::load(testFontDataPath_, dictId_);
+    ASSERT_TRUE(dataResult.has_value());
+
+    auto indexResult = RscIndex::load(testFontDataPath_);
+    ASSERT_TRUE(indexResult.has_value());
+
+    auto& rscData = dataResult.value();
+    const auto& index = indexResult.value();
+
+    std::cout << "\n";
+    printSeparator();
+    std::cout << "Testing Record Data Retrieval:\n";
+    printSeparator();
+
+    // Get first record
+    auto recordResult = index.getByIndex(0);
+    ASSERT_TRUE(recordResult.has_value()) << "Failed to record: " << recordResult.error();
+
+    const auto& [itemId, mapRecord] = recordResult.value();
+
+    auto dataSpan = rscData.get(mapRecord);
+    ASSERT_TRUE(dataSpan.has_value()) << "Failed to get data: " << dataSpan.error();
+
+    const auto& data = dataSpan.value();
+    std::cout << std::format("  Item ID:     {}\n", itemId);
+}
 
