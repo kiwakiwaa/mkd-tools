@@ -1,16 +1,15 @@
 //
-// Caoimheにより 2026/01/16 に作成されました。
+// kiwakiwaaにより 2026/01/16 に作成されました。
 //
 
 #pragma once
 
 #include "nrsc_index.hpp"
-#include "../zlib_decompressor.hpp"
+#include "monokakido/resource/zlib_decompressor.hpp"
 
 #include <expected>
 #include <fstream>
 #include <filesystem>
-#include <optional>
 #include <span>
 #include <vector>
 
@@ -93,15 +92,6 @@ namespace monokakido::resource
          *          reference readBuffer_ or the decompressor's internal buffer
          */
         [[nodiscard]] std::expected<std::span<const uint8_t>, std::string> decompressData(const NrscIndexRecord& record) const;
-
-
-        /**
-         * Gets sequence number from .nrsc filename
-         *
-         * @param filename .nrsc filename (e.g 0003.nrsc)
-         * @return The sequence number for numbered .nrsc file
-         */
-        static std::optional<uint32_t> parseSequenceNumber(const fs::path& filename);
 
         std::vector<ResourceFile> files_;
         std::unique_ptr<ZlibDecompressor> decompressor_;

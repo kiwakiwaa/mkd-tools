@@ -8,8 +8,10 @@
 #include "monokakido/core/platform/fs.hpp"
 #include "monokakido/dictionary/catalog.hpp"
 #include "monokakido/resource/nrsc/nrsc_index.hpp"
+#include "../common.hpp"
 
 using namespace monokakido::resource;
+using namespace monokakido::test;
 
 class NrscIndexTest : public ::testing::Test
 {
@@ -24,12 +26,6 @@ protected:
 
     std::filesystem::path testDataPath_;
 };
-
-
-void printSeparator(const char c = '=', const size_t width = 80)
-{
-    std::cout << std::string(width, c) << '\n';
-}
 
 
 void printRecord(std::string_view id, const NrscIndexRecord& record, size_t index = 0)

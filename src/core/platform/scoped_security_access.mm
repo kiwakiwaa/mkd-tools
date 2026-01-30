@@ -1,5 +1,6 @@
 #include "monokakido/core/platform/scoped_security_access.hpp"
 
+#import <Cocoa/Cocoa.h>
 #import <Foundation/Foundation.h>
 
 #include <format>
@@ -105,6 +106,101 @@ namespace monokakido::platform::fs
                 return std::unexpected("Failed to access security-scoped resource");
 
             return BookmarkAccess{std::move(path), std::move(access)};
+        }
+    }
+
+
+    std::optional<BookmarkData> promptForDictionariesAccess()
+    {
+        @autoreleasepool {
+            NSOpenPanel* panel = [NSOpenPanel openPanel];
+            panel.message = @"Please select the Monokakido Dictionaries folder to grant access";
+            panel.prompt = @"Grant Access";
+            panel.canChooseFiles = NO;
+            panel.canChooseDirectories = YES;
+            panel.allowsMultipleSelection = NO;
+
+            // Optional: try to navigate to expected location
+            NSString* groupId = @"group.jp.monokakido.Dictionaries";
+            NSURL* containerURL = [[NSFileManager defaultManager]
+                containerURLForSecurityApplicationGroupIdentifier:groupId];
+            if (containerURL) {
+                NSURL* dictPath = [containerURL URLByAppendingPathComponent:
+                    @"Library/Application Support/com.dictionarystore/dictionaries"];
+                panel.directoryURL = dictPath;
+            }
+
+            if ([panel runModal] != NSModalResponseOK) {
+                return std::nullopt;
+            }
+
+            NSURL* selectedURL = panel.URLs.firstObject;
+            if (!selectedURL) {
+                return std::nullopt;
+            }
+
+            // Create security-scoped bookmark
+            NSError* error = nil;
+            NSData* bookmark = [selectedURL bookmarkDataWithOptions:
+                NSURLBookmarkCreationWithSecurityScope |
+                NSURLBookmarkCreationSecurityScopeAllowOnlyReadAccess
+                includingResourceValuesForKeys:nil
+                relativeToURL:nil
+                error:&error];
+
+            if (!bookmark || error) {
+                NSLog(@"Failed to create bookmark: %@", error);
+                return std::nullopt;
+            }
+
+            BookmarkData result;
+            result.data.assign(
+                static_cast<const uint8_t*>(bookmark.bytes),
+                static_cast<const uint8_t*>(bookmark.bytes) + bookmark.length
+            );
+            result.resolvedPath = std::filesystem::path{selectedURL.path.UTF8String};
+
+            return result;
+        }
+    }
+
+
+    // Simple preference storage using UserDefaults
+    std::optional<std::vector<uint8_t>> loadSavedBookmark()
+    {
+        @autoreleasepool {
+            NSData* data = [[NSUserDefaults standardUserDefaults]
+                dataForKey:@"MonokakidoDictionariesBookmark"];
+
+            if (!data) {
+                return std::nullopt;
+            }
+
+            std::vector<uint8_t> result;
+            result.assign(
+                static_cast<const uint8_t*>(data.bytes),
+                static_cast<const uint8_t*>(data.bytes) + data.length
+            );
+            return result;
+        }
+    }
+
+
+    void saveBookmark(const std::vector<uint8_t>& bookmarkData)
+    {
+        @autoreleasepool {
+            NSData* data = [NSData dataWithBytes:bookmarkData.data()
+                                          length:bookmarkData.size()];
+            [[NSUserDefaults standardUserDefaults]
+                setObject:data forKey:@"MonokakidoDictionariesBookmark"];
+        }
+    }
+
+
+    void clearSavedBookmark()
+    {
+        @autoreleasepool {
+            [[NSUserDefaults standardUserDefaults] removeObjectForKey:@"MonokakidoDictionariesBookmark"];
         }
     }
 }

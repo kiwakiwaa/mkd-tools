@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "../common.hpp"
+#include "monokakido/resource/common.hpp"
 
 #include <iostream>
 #include <format>
@@ -19,7 +19,7 @@ namespace monokakido::resource
      * to resources stored across multiple numbered .nrsc files. Records are
      * stored sorted by ID string to enable binary search lookups.
      */
-    struct NrscIndexRecord
+    struct NrscIndexRecord : BinaryStruct<NrscIndexRecord>
     {
         uint16_t format;            // Compression: 0=uncompressed, 1=zlib
         uint16_t fileSequence;      // Which numbered .nrsc file (0.nrsc, 1.nrsc, etc.)
@@ -33,7 +33,7 @@ namespace monokakido::resource
         [[nodiscard]] uint64_t offset() const noexcept;
         [[nodiscard]] size_t len() const noexcept;
 
-        void toLittleEndian() noexcept;
+        void swapEndianness() noexcept;
 
         [[nodiscard]] std::string formattedSize() const noexcept;
     };

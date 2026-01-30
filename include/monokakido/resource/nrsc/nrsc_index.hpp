@@ -1,10 +1,11 @@
 //
-// Caoimheにより 2026/01/16 に作成されました。
+// kiwakiwaaにより 2026/01/16 に作成されました。
 //
 
 #pragma once
 
 #include "nrsc_index_record.hpp"
+#include "monokakido/resource/common.hpp"
 
 #include <expected>
 #include <filesystem>
@@ -53,10 +54,12 @@ namespace monokakido::resource
     constexpr size_t HEADER_SIZE = 8;
     constexpr size_t RECORD_SIZE = sizeof(NrscIndexRecord);
 
-    struct IndexHeader
+    struct IndexHeader : BinaryStruct<IndexHeader>
     {
         uint32_t zeroField;
         uint32_t recordCount;
+
+        void swapEndianness() noexcept;
     };
 
 

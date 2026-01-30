@@ -43,16 +43,13 @@ namespace monokakido::resource
         return length;
     }
 
-    void NrscIndexRecord::toLittleEndian() noexcept
+    void NrscIndexRecord::swapEndianness() noexcept
     {
-        if constexpr (std::endian::native == std::endian::big)
-        {
-            format = std::byteswap(format);
-            fileSequence = std::byteswap(fileSequence);
-            idStringOffset = std::byteswap(idStringOffset);
-            fileOffset = std::byteswap(fileOffset);
-            length = std::byteswap(length);
-        }
+        format = std::byteswap(format);
+        fileSequence = std::byteswap(fileSequence);
+        idStringOffset = std::byteswap(idStringOffset);
+        fileOffset = std::byteswap(fileOffset);
+        length = std::byteswap(length);
     }
 
     std::string NrscIndexRecord::formattedSize() const noexcept

@@ -12,40 +12,42 @@
 
 namespace monokakido::resource
 {
+    void IndexHeader::swapEndianness() noexcept
+    {
+        zeroField = std::byteswap(zeroField);
+        recordCount = std::byteswap(recordCount);
+    }
+
+
     std::expected<NrscIndex, std::string> NrscIndex::load(const fs::path& directoryPath)
     {
-        const auto indexPath = directoryPath / "index.nidx";
-        if (!fs::exists(indexPath))
-            return std::unexpected(std::format("index.nidx not found in: {}", directoryPath.string()));
+        auto filePathResult = platform::fs::getValidatedFilePath(directoryPath, "index.nidx");
+        if (!filePathResult)
+            return std::unexpected(filePathResult.error());
 
-        std::ifstream file(indexPath, std::ios::binary);
-        if (!file)
-            return std::unexpected(std::format("Failed to open index file: {}", indexPath.string()));
+        auto reader = platform::fs::BinaryFileReader::open(*filePathResult);
+        if (!reader)
+            return std::unexpected(reader.error());
 
-        // read header
-        auto headerResult = readHeader(file);
-        if (!headerResult)
-            return std::unexpected(headerResult.error());
-        const auto& [zeroField, recordCount] = headerResult.value();
+        auto header = reader->readStruct<IndexHeader>();
+        if (!header)
+            return std::unexpected(header.error());
 
-        // Calculate sizes
-        const size_t totalHeaderSize = HEADER_SIZE + recordCount * RECORD_SIZE;
-        const auto fileSize = fs::file_size(indexPath);
-        const auto stringRegionSize = fileSize - totalHeaderSize;
+        auto records = reader->readStructArray<NrscIndexRecord>(header->recordCount);
+        if (!records)
+            return std::unexpected(records.error());
 
-        // read records
-        auto recordsResult = readRecords(file, recordCount);
-        if (!recordsResult)
-            return std::unexpected(recordsResult.error());
+        // Read remaining bytes as ID strings
+        const size_t stringRegionSize = reader->remainingBytes();
+        auto idStrings = reader->readBytesIntoString(stringRegionSize);
+        if (!idStrings)
+            return std::unexpected(idStrings.error());
 
-        // read ID strings
-        auto stringsResult = readIdStrings(file, stringRegionSize);
-        if (!stringsResult)
-            return std::unexpected(stringsResult.error());
+        const size_t totalHeaderSize = HEADER_SIZE + header->recordCount * RECORD_SIZE;
 
         return NrscIndex(
-            std::move(*recordsResult),
-            std::move(*stringsResult),
+            std::move(*records),
+            std::move(*idStrings),
             totalHeaderSize
         );
     }

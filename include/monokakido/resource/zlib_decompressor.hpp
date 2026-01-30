@@ -30,6 +30,10 @@ namespace monokakido::resource
         [[nodiscard]] std::expected<std::span<const uint8_t>, std::string> decompress(
             std::span<const uint8_t> compressed, size_t expectedSize) const;
 
+        [[nodiscard]] std::vector<uint8_t> takeBuffer() const;
+
+        static bool isZlibCompressed(std::span<const uint8_t> data);
+
     private:
         mutable std::vector<uint8_t> decompressBuffer_;
     };

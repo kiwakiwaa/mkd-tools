@@ -6,10 +6,17 @@
 
 #include <expected>
 #include <filesystem>
+#include <optional>
 #include <vector>
 
 namespace monokakido::platform::fs
 {
+
+    struct BookmarkData
+    {
+        std::vector<uint8_t> data;
+        std::filesystem::path resolvedPath;
+    };
 
     class ScopedSecurityAccess
     {
@@ -26,7 +33,7 @@ namespace monokakido::platform::fs
         ScopedSecurityAccess(ScopedSecurityAccess&&) noexcept;
         ScopedSecurityAccess& operator=(ScopedSecurityAccess&&) noexcept;
 
-        bool isValid() const;
+        [[nodiscard]] bool isValid() const;
 
     private:
         void* url_ = nullptr; // NSUrl*
@@ -42,5 +49,12 @@ namespace monokakido::platform::fs
 
     std::expected<BookmarkAccess, std::string> restoreAccessFromBookmark(const std::vector<uint8_t>& bookmarkData);
 
+    std::optional<BookmarkData> promptForDictionariesAccess();
+
+    std::optional<std::vector<uint8_t>> loadSavedBookmark();
+
+    void saveBookmark(const std::vector<uint8_t>& bookmarkData);
+
+    void clearSavedBookmark();
 
 }

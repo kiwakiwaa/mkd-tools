@@ -12,7 +12,7 @@
 namespace monokakido::resource
 {
 
-    std::expected<std::span<const uint8_t>, std::string> ZlibDecompressor::decompress(std::span<const uint8_t> compressed, size_t expectedSize) const
+    std::expected<std::span<const uint8_t>, std::string> ZlibDecompressor::decompress(std::span<const uint8_t> compressed, const size_t expectedSize) const
     {
         decompressBuffer_.resize(expectedSize);
 
@@ -52,6 +52,20 @@ namespace monokakido::resource
         return std::span<const uint8_t>(decompressBuffer_.data(), decompressedSize);
     }
 
+
+    std::vector<uint8_t> ZlibDecompressor::takeBuffer() const
+    {
+        return std::move(decompressBuffer_);
+    }
+
+
+
+    bool ZlibDecompressor::isZlibCompressed(std::span<const uint8_t> data)
+    {
+        return data.size() > 2 &&
+               data[0] == 0x78 &&
+               (data[1] == 0x01 || data[1] == 0x5E || data[1] == 0x9C || data[1] == 0xDA);
+    }
 
 
 }

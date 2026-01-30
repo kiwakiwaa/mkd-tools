@@ -3,10 +3,10 @@
 //
 
 #include "monokakido/resource/nrsc/nrsc_data.hpp"
+#include "monokakido/resource/common.hpp"
 
 #include <algorithm>
 #include <format>
-#include <optional>
 
 namespace monokakido::resource
 {
@@ -19,7 +19,7 @@ namespace monokakido::resource
             if (!entry.is_regular_file() || entry.path().extension() != ".nrsc")
                 continue;
 
-            const auto seqNum = parseSequenceNumber(entry.path().filename());
+            const auto seqNum = detail::parseSequenceNumber(entry.path().filename(), ".nrsc");
             if (!seqNum)
                 continue;
 
@@ -108,22 +108,6 @@ namespace monokakido::resource
 
             default:
                 return std::unexpected("Unknown compression format");
-        }
-    }
-
-
-    std::optional<uint32_t> NrscData::parseSequenceNumber(const fs::path& filename)
-    {
-        if (filename.extension() != ".nrsc")
-            return std::nullopt;
-
-        try
-        {
-            return std::stoul(filename.stem().string());
-        }
-        catch (...)
-        {
-            return std::nullopt;
         }
     }
 }

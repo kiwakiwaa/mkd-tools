@@ -31,8 +31,8 @@ find_package(ZLIB REQUIRED)
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 include_directories(${glaze_SOURCE_DIR}/include)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/utfcpp)
 #include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/pugixml)
-#include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/utfcpp)
 
 
 # Core library
@@ -66,6 +66,13 @@ add_library(monokakido_resource STATIC
         src/resource/nrsc/nrsc_data.cpp
         src/resource/zlib_decompressor.cpp
         src/resource/resource_loader.cpp
+        src/resource/rsc/rsc_index.cpp
+        src/resource/rsc/rsc_data.cpp
+        src/resource/common.cpp
+        src/resource/rsc/rsc_index_record.cpp
+        src/resource/rsc/rsc_map.cpp
+        src/resource/xml_view.cpp
+        src/resource/rsc/rsc_keystore.cpp
 )
 
 target_link_libraries(monokakido_resource PRIVATE
@@ -99,12 +106,15 @@ if (BUILD_TESTING)
     enable_testing()
     add_executable(monokakido_extractor_tests
             test/nrsc/test_nrsc_index.cpp
+            test/rsc/test_rsc_index.cpp
+            test/rsc/test_rsc_data.cpp
     )
 
     target_link_libraries(monokakido_extractor_tests PRIVATE
             monokakido_core
             monokakido_resource
             GTest::gtest_main
+            ZLIB::ZLIB
     )
 
     include(GoogleTest)
