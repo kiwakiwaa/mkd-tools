@@ -16,8 +16,8 @@
 
 namespace monokakido::platform::fs
 {
-    [[nodiscard]] std::expected<std::filesystem::path, std::string> getValidatedFilePath(
-        const std::filesystem::path& directoryPath, std::string_view filename);
+    [[nodiscard]] std::expected<std::filesystem::path, std::string> findFileWithExtension(
+        const std::filesystem::path& directoryPath, std::string_view extension);
 
     [[nodiscard]] std::filesystem::path getContainerPathByGroupIdentifier(const std::string& groupIdentifier);
 

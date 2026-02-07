@@ -21,7 +21,7 @@ namespace monokakido
 
     std::expected<NrscIndex, std::string> NrscIndex::load(const fs::path& directoryPath)
     {
-        auto filePathResult = platform::fs::getValidatedFilePath(directoryPath, "index.nidx");
+        auto filePathResult = platform::fs::findFileWithExtension(directoryPath, ".nidx");
         if (!filePathResult)
             return std::unexpected(filePathResult.error());
 

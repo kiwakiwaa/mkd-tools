@@ -39,6 +39,21 @@ namespace monokakido
     }
 
 
+    std::expected<RscItem, std::string> Rsc::getByIndex(const size_t index) const
+    {
+        auto result = index_.getByIndex(index);
+        if (!result)
+            return std::unexpected(result.error());
+
+        auto [id, record] = *result;
+        auto dataResult = data_.get(record);
+        if (!dataResult)
+            return std::unexpected(dataResult.error());
+
+        return RscItem{id, *dataResult};
+    }
+
+
     size_t Rsc::size() const noexcept
     {
         return index_.size();
@@ -61,24 +76,15 @@ namespace monokakido
         assert(rsc_ != nullptr && "Dereferencing invalid iterator");
         assert(index_ < rsc_->size() && "Dereferencing end iterator");
 
-        auto result = rsc_->index_.getByIndex(index_);
+        auto result = rsc_->getByIndex(index_);
         if (!result)
         {
             throw std::runtime_error(
                 std::format("Rsc iteration failed at position {}: {}",
-                            index_, result.error()));
+                    index_, result.error()));
         }
 
-        auto [itemId, mapRecord] = *result;
-        auto dataResult = rsc_->data_.get(mapRecord);
-        if (!dataResult)
-        {
-            throw std::runtime_error(
-                std::format("Rsc iteration failed to get data at position {}: {}",
-                            index_, dataResult.error()));
-        }
-
-        return RscItem{itemId, *dataResult};
+        return *result;
     }
 
     Rsc::Iterator& Rsc::Iterator::operator++()

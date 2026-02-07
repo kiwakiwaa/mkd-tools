@@ -6,6 +6,8 @@
 
 #include "monokakido/resource/common.hpp"
 
+#include <format>
+
 namespace monokakido
 {
     /**
@@ -47,5 +49,30 @@ namespace monokakido
          */
         auto operator<=>(const MapRecord&) const noexcept = default;
     };
+
     static_assert(sizeof(MapRecord) == 8, "MapRecord must be 8 bytes");
 }
+
+template<>
+struct std::formatter<monokakido::MapRecord>
+{
+    static constexpr auto parse(const std::format_parse_context& ctx)
+    {
+        const auto it = ctx.begin();
+        if (it == ctx.end() || *it == '}')
+            return it;
+
+        if (it != ctx.end() && *it != '}')
+            throw std::format_error("Invalid format specifier for MapRecord");
+
+        return ctx.begin();
+    }
+
+    static auto format(const monokakido::MapRecord& record, std::format_context& ctx)
+    {
+        return std::format_to(ctx.out(),
+                              "zOffset: {:10} | ioffset: {:6}",
+                              record.zOffset,
+                              record.ioffset);
+    }
+};

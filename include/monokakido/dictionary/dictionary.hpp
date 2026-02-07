@@ -8,8 +8,10 @@
 #include "paths.hpp"
 #include "monokakido/resource/nrsc/nrsc.hpp"
 #include "monokakido/resource/rsc/rsc.hpp"
-#include "monokakido/output/exporter.hpp"
+#include "monokakido/output/resource_exporter.hpp"
 #include "monokakido/resource/font.hpp"
+
+#include <variant>
 
 namespace monokakido
 {
@@ -28,19 +30,18 @@ namespace monokakido
         // returns nullptr if no nrsc resources available
         [[nodiscard]] Nrsc* graphics() noexcept;
         [[nodiscard]] const Nrsc* graphics() const noexcept;
-        [[nodiscard]] Rsc* fonts() noexcept;
-        [[nodiscard]] const Rsc* fonts() const noexcept;
+        [[nodiscard]] std::vector<Font>& fonts() noexcept;
+        [[nodiscard]] const std::vector<Font>& fonts() const noexcept;
 
+        [[nodiscard]] bool hasAudio() const noexcept;
         [[nodiscard]] bool hasGraphics() const noexcept;
         [[nodiscard]] bool hasFonts() const noexcept;
 
-        std::expected<ExportResult, std::string> exportAllResources(const ExportOptions& options) const;
-
+        ExportResult exportAll(const ExportOptions& options) const;
+        std::expected<ExportResult, std::string> exportAudio(const ExportOptions& options) const;
         std::expected<ExportResult, std::string> exportEntries(const ExportOptions& options) const;
         std::expected<ExportResult, std::string> exportGraphics(const ExportOptions& options) const;
         std::expected<ExportResult, std::string> exportFonts(const ExportOptions& options) const;
-
-        void print() const;
 
 
     private:
@@ -51,7 +52,7 @@ namespace monokakido
             DictionaryPaths paths,
             std::optional<Rsc> entries,
             std::optional<Nrsc> graphics,
-            std::optional<Nrsc> audio,
+            std::optional<std::variant<Rsc, Nrsc>> audio,
             std::vector<Font> fonts);
 
         std::string id_;
@@ -59,7 +60,7 @@ namespace monokakido
         DictionaryMetadata metadata_;
         std::optional<Rsc> entries_;
         std::optional<Nrsc> graphics_;
-        std::optional<Nrsc> audio_;
+        std::optional<std::variant<Rsc, Nrsc>> audio_;
         std::vector<Font> fonts_;
     };
 }

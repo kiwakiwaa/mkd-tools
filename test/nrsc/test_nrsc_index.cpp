@@ -8,17 +8,17 @@
 #include "monokakido/core/platform/fs.hpp"
 #include "monokakido/dictionary/catalog.hpp"
 #include "monokakido/resource/nrsc/nrsc_index.hpp"
-#include "../common.hpp"
+#include "../test_listener.hpp"
 
-using namespace monokakido::test;
+using namespace monokakido;
 
 class NrscIndexTest : public ::testing::Test
 {
 protected:
     void SetUp() override
     {
-        const auto containerPath = monokakido::platform::fs::getContainerPathByGroupIdentifier(monokakido::MONOKAKIDO_GROUP_ID);
-        const auto dictionariesPath = containerPath / monokakido::DICTIONARIES_PATH;
+        const auto containerPath = platform::fs::getContainerPathByGroupIdentifier(MONOKAKIDO_GROUP_ID);
+        const auto dictionariesPath = containerPath / DICTIONARIES_PATH;
 
         testDataPath_ = dictionariesPath / "KJT" / "Contents" / "KJT" / "img";
     }
@@ -27,30 +27,16 @@ protected:
 };
 
 
-void printRecord(std::string_view id, const monokakido::NrscIndexRecord& record, size_t index = 0)
-{
-    std::cout << std::format("  [{:4}] ID: {:20} | {}\n",
-                             index,
-                             id,
-                             record);
-}
-
-
 TEST_F(NrscIndexTest, LoadValidIndexFile)
 {
-    auto result = monokakido::NrscIndex::load(testDataPath_);
+    auto result = NrscIndex::load(testDataPath_);
     ASSERT_TRUE(result.has_value()) << "Failed to load index: " << result.error();
 
     const auto& index = result.value();
     const size_t recordCount = index.size();
 
-    std::cout << "\n";
-    printSeparator();
-    std::cout << std::format("NRSC Index Loaded Successfully from: {}\n", testDataPath_.string());
-    printSeparator();
-    std::cout << std::format("Total Records: {}\n", recordCount);
-    printSeparator();
-    std::cout << "\n";
+    test::verbosePrint("NRSC Index Loaded Successfully from: {}\n", testDataPath_.string());
+    test::verbosePrint("Total Records: {}\n", recordCount);
 
     EXPECT_GT(recordCount, 0) << "Index should contain at least one record";
 }
@@ -58,12 +44,11 @@ TEST_F(NrscIndexTest, LoadValidIndexFile)
 
 TEST_F(NrscIndexTest, LoadNonExistentDirectory)
 {
-    auto result = monokakido::NrscIndex::load("/path/that/does/not/exist");
+    auto result = NrscIndex::load("/path/that/does/not/exist");
 
     ASSERT_FALSE(result.has_value()) << "Should fail when directory doesn't exist";
 
-    std::cout << "\n";
-    std::cout << "Expected error (non-existent directory): " << result.error() << "\n\n";
+    test::verbosePrint("Expected error (non-existent directory): {}\n", result.error());
 
     EXPECT_TRUE(result.error().find("not found") != std::string::npos);
 }
@@ -71,15 +56,12 @@ TEST_F(NrscIndexTest, LoadNonExistentDirectory)
 
 TEST_F(NrscIndexTest, GetRecordByIndex)
 {
-    auto indexResult = monokakido::NrscIndex::load(testDataPath_);
+    auto indexResult = NrscIndex::load(testDataPath_);
     ASSERT_TRUE(indexResult.has_value());
 
     const auto& index = indexResult.value();
 
-    std::cout << "\n";
-    printSeparator();
-    std::cout << "First 10 Records:\n";
-    printSeparator();
+    test::verbosePrint("First 10 Records:\n");
 
     const size_t displayCount = std::min(index.size(), size_t{10});
 
@@ -89,19 +71,17 @@ TEST_F(NrscIndexTest, GetRecordByIndex)
         ASSERT_TRUE(recordResult.has_value()) << "Failed to get record at index " << i;
 
         const auto& [id, record] = recordResult.value();
-        printRecord(id, record, i);
+        test::verbosePrint("  [{:4}] ID: {:20} | {}\n", i, id, record);
 
         // Validate record fields
-        EXPECT_LE(record.compressionFormat(), monokakido::CompressionFormat::Zlib);
+        EXPECT_LE(record.compressionFormat(), CompressionFormat::Zlib);
     }
-
-    std::cout << "\n";
 }
 
 
 TEST_F(NrscIndexTest, GetOutOfBoundsIndex)
 {
-    auto indexResult = monokakido::NrscIndex::load(testDataPath_);
+    auto indexResult = NrscIndex::load(testDataPath_);
     ASSERT_TRUE(indexResult.has_value());
 
     const auto& index = indexResult.value();
@@ -111,8 +91,7 @@ TEST_F(NrscIndexTest, GetOutOfBoundsIndex)
 
     ASSERT_FALSE(result.has_value()) << "Should fail for out of bounds index";
 
-    std::cout << "\n";
-    std::cout << std::format("Expected error (index {} out of range): {}\n\n", invalidIndex, result.error());
+    test::verbosePrint("Expected error (index {} out of range): {}", invalidIndex, result.error());
 
     EXPECT_TRUE(result.error().find("out of range") != std::string::npos);
 }
@@ -120,7 +99,7 @@ TEST_F(NrscIndexTest, GetOutOfBoundsIndex)
 
 TEST_F(NrscIndexTest, FindRecordById)
 {
-    auto indexResult = monokakido::NrscIndex::load(testDataPath_);
+    auto indexResult = NrscIndex::load(testDataPath_);
     ASSERT_TRUE(indexResult.has_value());
 
     const auto& index = indexResult.value();
@@ -131,19 +110,15 @@ TEST_F(NrscIndexTest, FindRecordById)
 
     const auto& [testId, expectedRecord] = firstRecordResult.value();
 
-    std::cout << "\n";
-    printSeparator();
-    std::cout << std::format("Testing findById with ID: '{}'\n", testId);
-    printSeparator();
+    test::verbosePrint("Testing findById with ID: '{}'\n", testId);
 
     auto findResult = index.findById(testId);
     ASSERT_TRUE(findResult.has_value()) << "Failed to find record by ID: " << testId;
 
     const auto& foundRecord = findResult.value();
 
-    std::cout << "Found record:\n";
-    printRecord(testId, foundRecord);
-    std::cout << "\n";
+    test::verbosePrint("Found record:\n");
+    test::verbosePrint("  [20] ID: {:20} | {}\n", testId, foundRecord);
 
     // Verify the found record matches
     EXPECT_EQ(foundRecord.fileSeq(), expectedRecord.fileSeq());
@@ -155,7 +130,7 @@ TEST_F(NrscIndexTest, FindRecordById)
 
 TEST_F(NrscIndexTest, DisplayIndexStatistics)
 {
-    const auto indexResult = monokakido::NrscIndex::load(testDataPath_);
+    const auto indexResult = NrscIndex::load(testDataPath_);
     ASSERT_TRUE(indexResult.has_value());
 
     const auto& index = indexResult.value();
@@ -170,7 +145,7 @@ TEST_F(NrscIndexTest, DisplayIndexStatistics)
 
     for (const auto record : index | std::views::values)
     {
-        if (record.compressionFormat() == monokakido::CompressionFormat::Uncompressed)
+        if (record.compressionFormat() == CompressionFormat::Uncompressed)
             ++uncompressedCount;
         else
             ++zlibCount;
@@ -182,38 +157,31 @@ TEST_F(NrscIndexTest, DisplayIndexStatistics)
         ++fileDistribution[record.fileSeq()];
     }
 
-    std::cout << "\n";
-    printSeparator();
-    std::cout << "Index Statistics:\n";
-    printSeparator();
-    std::cout << std::format("  Total Records:        {}\n", index.size());
-    std::cout << std::format(
+    test::verbosePrint("  Total Records:        {}\n", index.size());
+    test::verbosePrint(
         "  Uncompressed:         {} ({:.1f}%)\n",
         uncompressedCount,
         100.0 * static_cast<double>(uncompressedCount) / static_cast<double>(index.size())
     );
-    std::cout << std::format(
+    test::verbosePrint(
         "  Zlib Compressed:      {} ({:.1f}%)\n",
         zlibCount,
         100.0 * static_cast<double>(zlibCount) / static_cast<double>(index.size())
     );
-    std::cout << std::format("  Total Size:           {} bytes\n", totalSize);
-    std::cout << std::format("  Average Record Size:  {} bytes\n", totalSize / index.size());
-    std::cout << std::format("  Min Record Size:      {} bytes\n", minLength);
-    std::cout << std::format("  Max Record Size:      {} bytes\n", maxLength);
-    std::cout << "\n  Distribution across .nrsc files:\n";
+    test::verbosePrint("  Total Size:           {} bytes\n", totalSize);
+    test::verbosePrint("  Average Record Size:  {} bytes\n", totalSize / index.size());
+    test::verbosePrint("  Min Record Size:      {} bytes\n", minLength);
+    test::verbosePrint("  Max Record Size:      {} bytes\n", maxLength);
+    test::verbosePrint("\n  Distribution across .nrsc files:\n");
 
     for (const auto& [fileSeq, count] : fileDistribution)
     {
-        std::cout << std::format("    {}.nrsc: {} records ({:.1f}%)\n",
+        test::verbosePrint("    {}.nrsc: {} records ({:.1f}%)\n",
                                  fileSeq,
                                  count,
                                  100.0 * static_cast<double>(count) / static_cast<double>(index.size())
         );
     }
-
-    printSeparator();
-    std::cout << "\n";
 
     EXPECT_GT(index.size(), 0);
     EXPECT_GT(totalSize, 0);
@@ -222,15 +190,12 @@ TEST_F(NrscIndexTest, DisplayIndexStatistics)
 
 TEST_F(NrscIndexTest, DisplayLastRecords)
 {
-    auto indexResult = monokakido::NrscIndex::load(testDataPath_);
+    auto indexResult = NrscIndex::load(testDataPath_);
     ASSERT_TRUE(indexResult.has_value());
 
     const auto& index = indexResult.value();
 
-    std::cout << "\n";
-    printSeparator();
-    std::cout << "Last 5 Records:\n";
-    printSeparator();
+    test::verbosePrint("Last 5 Records:\n");
 
     const size_t displayCount = std::min(index.size(), size_t{5});
     const size_t startIndex = index.size() - displayCount;
@@ -241,8 +206,6 @@ TEST_F(NrscIndexTest, DisplayLastRecords)
         ASSERT_TRUE(recordResult.has_value());
 
         const auto& [id, record] = recordResult.value();
-        printRecord(id, record, i);
+        test::verbosePrint("  [{:4}] ID: {:20} | {}\n", i, id, record);
     }
-
-    std::cout << "\n";
 }

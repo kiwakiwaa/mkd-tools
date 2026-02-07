@@ -101,7 +101,7 @@ namespace monokakido
          * @param dictId Dictionary id for decryption key lookup
          * @return RscData instance or error string if failure
          */
-        static std::expected<RscData, std::string> load(const fs::path& directoryPath, std::string_view dictId);
+        static std::expected<RscData, std::string> load(const fs::path& directoryPath, std::string_view dictId = "");
 
         /**
          * Retrieve the data for a dictionary entry

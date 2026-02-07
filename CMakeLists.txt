@@ -33,6 +33,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 include_directories(${glaze_SOURCE_DIR}/include)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/utfcpp)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/pugixml)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/indicators)
 
 
 # Core library
@@ -62,9 +63,7 @@ add_library(monokakido_dictionary STATIC
 add_library(monokakido_output STATIC
         third_party/pugixml/pugixml.cpp
         src/output/base_exporter.cpp
-        src/output/font_exporter.cpp
-        src/output/nrsc_exporter.cpp
-        src/output/rsc_exporter.cpp
+        src/output/resource_exporter.cpp
 )
 
 
@@ -118,17 +117,24 @@ set_target_properties(monokakido_extractor PROPERTIES
 
 if (BUILD_TESTING)
     enable_testing()
-    add_executable(monokakido_extractor_tests
+    set(TEST_SOURCES
+            test/test_listener.hpp
+
             test/nrsc/test_nrsc_index.cpp
-            test/rsc/test_rsc_index.cpp
             test/rsc/test_rsc_data.cpp
+            test/rsc/test_rsc_index.cpp
+            test/main.cpp
+    )
+
+    add_executable(monokakido_extractor_tests
+            ${TEST_SOURCES}
     )
 
     target_link_libraries(monokakido_extractor_tests PRIVATE
             monokakido_core
             monokakido_resource
             monokakido_output
-            GTest::gtest_main
+            GTest::gtest
             ZLIB::ZLIB
     )
 
@@ -137,5 +143,4 @@ if (BUILD_TESTING)
             DISCOVERY_TIMEOUT 300
             PROPERTIES LABELS "unit"
     )
-
 endif ()

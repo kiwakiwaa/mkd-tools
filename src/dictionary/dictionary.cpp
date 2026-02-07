@@ -7,7 +7,6 @@
 #include "monokakido/dictionary/catalog.hpp"
 #include "monokakido/resource/resource_loader.hpp"
 
-#include <iostream>
 #include <utility>
 
 namespace monokakido
@@ -87,6 +86,24 @@ namespace monokakido
     }
 
 
+    std::vector<Font>& Dictionary::fonts() noexcept
+    {
+        return fonts_;
+    }
+
+
+    const std::vector<Font>& Dictionary::fonts() const noexcept
+    {
+        return fonts_;
+    }
+
+
+    bool Dictionary::hasAudio() const noexcept
+    {
+        return audio_.has_value();
+    }
+
+
     bool Dictionary::hasGraphics() const noexcept
     {
         return graphics_ && !graphics_->empty();
@@ -104,7 +121,7 @@ namespace monokakido
                            DictionaryPaths paths,
                            std::optional<Rsc> entries,
                            std::optional<Nrsc> graphics,
-                           std::optional<Nrsc> audio,
+                           std::optional<std::variant<Rsc, Nrsc>> audio,
                            std::vector<Font> fonts)
         : id_(std::move(id)), paths_(std::move(paths)), metadata_(std::move(metadata)),
           entries_(std::move(entries)),
@@ -115,15 +132,54 @@ namespace monokakido
     }
 
 
-    void Dictionary::print() const
+    ExportResult Dictionary::exportAll(const ExportOptions& options) const
     {
-        std::cout << "-------" << metadata_.displayName().value_or("[Display Name]") << "-----\n";
-        std::cout << std::format("ID: {}", id_) << '\n';
-        std::cout << std::format("Description: {}", metadata_.description().value_or("[Missing]")) << '\n';
-        std::cout << std::format("Publisher: {}", metadata_.publisher().value_or("[Missing]")) << '\n';
-        std::cout << std::format("Content dir: {}",
-                                 metadata_.contentDirectoryName().value_or(fs::path("[Missing]")).string()) <<
-                std::endl;
+        ExportResult combinedResult;
+
+        if (hasFonts())
+        {
+            if (auto result = exportFonts(options))
+                combinedResult += *result;
+            else
+                combinedResult.errors.push_back(std::format("Failed to export fonts: {}", result.error()));
+        }
+
+        if (hasGraphics())
+        {
+            if (auto result = exportGraphics(options))
+                combinedResult += *result;
+            else
+                combinedResult.errors.push_back(std::format("Failed to export graphics: {}", result.error()));
+        }
+
+        if (hasAudio())
+        {
+            if (auto result = exportAudio(options))
+                combinedResult += *result;
+            else
+                combinedResult.errors.push_back(std::format("Failed to export audio: {}", result.error()));
+        }
+
+        if (entries_)
+        {
+            if (auto result = exportEntries(options))
+                combinedResult += *result;
+            else
+                combinedResult.errors.push_back(std::format("Failed to export entries: {}", result.error()));
+        }
+
+        return combinedResult;
+    }
+
+
+    std::expected<ExportResult, std::string> Dictionary::exportAudio(const ExportOptions& options) const
+    {
+        if (!hasAudio())
+            return ExportResult{};
+
+        return std::visit([&options](const auto& audioResource) {
+            return ResourceExporter::exportAll(audioResource, options);
+        }, *audio_);
     }
 
 
@@ -132,14 +188,14 @@ namespace monokakido
         if (!entries_)
             return ExportResult{};
 
-        return RscExporter::exportAll(*entries_, options);
+        return ResourceExporter::exportAll(*entries_, options);
     }
 
 
     std::expected<ExportResult, std::string> Dictionary::exportGraphics(
         const ExportOptions& options) const
     {
-        return hasGraphics() ? NrscExporter::exportAll(*graphics_, options) : ExportResult{};
+        return hasGraphics() ? ResourceExporter::exportAll(*graphics_, options) : ExportResult{};
     }
 
 
@@ -149,16 +205,11 @@ namespace monokakido
         ExportResult combinedResult;
         for (auto& font : fonts_)
         {
-            auto result = FontExporter::exportFont(font, options);
+            auto result = ResourceExporter::exportFont(font, options);
             if (!result)
                 return result;
 
-            combinedResult.totalResources += result->totalResources;
-            combinedResult.exported += result->exported;
-            combinedResult.skipped += result->skipped;
-            combinedResult.failed += result->failed;
-            combinedResult.totalBytes += result->totalBytes;
-            combinedResult.errors.insert(combinedResult.errors.end(), result->errors.begin(), result->errors.end());
+            combinedResult += *result;
         }
         return combinedResult;
     }

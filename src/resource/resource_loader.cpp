@@ -14,21 +14,21 @@ namespace monokakido
     }
 
 
-    std::optional<Rsc> ResourceLoader::loadEntries()
+    std::optional<Rsc> ResourceLoader::loadEntries() const
     {
         return tryLoad<Rsc>(PathType::Contents, "contents");
     }
 
 
-    std::optional<Nrsc> ResourceLoader::loadGraphics()
+    std::optional<Nrsc> ResourceLoader::loadGraphics() const
     {
         return tryLoad<Nrsc>(PathType::Graphics, "graphics");
     }
 
 
-    std::optional<Nrsc> ResourceLoader::loadAudio()
+    std::optional<std::variant<Rsc, Nrsc>> ResourceLoader::loadAudio() const
     {
-        return tryLoad<Nrsc>(PathType::Audio, "audio");
+        return tryLoadEither(PathType::Audio, "audio");
     }
 
 
@@ -38,37 +38,15 @@ namespace monokakido
         if (!fontsPath)
             return {};
 
-        std::vector<Font> fonts;
-
         // Iterate through subdirectories in the fonts folder
+        std::vector<Font> fonts;
         for (const auto& entry : fs::directory_iterator(*fontsPath))
         {
             if (!entry.is_directory())
                 continue;
 
-            const auto fontName = entry.path().filename().string();
-            const auto& fontPath = entry.path();
-
-            const bool hasRscFile = std::ranges::any_of(
-                fs::directory_iterator(fontPath),
-                [](const auto& fileEntry) {
-                    return fileEntry.path().extension() == ".rsc";
-                }
-            );
-
-            if (!hasRscFile)
-                continue;
-
-            // Try to open the Rsc from this font directory
-            auto result = Rsc::open(fontPath);
-            if (!result)
-            {
-                std::cerr << std::format("Failed to open font '{}' at: {}\n{}",
-                                       fontName, fontPath.string(), result.error());
-                continue;
-            }
-
-            fonts.emplace_back(fontName, std::move(*result));
+            if (auto font = tryLoadResource<Rsc>(entry.path(), entry.path().filename().string()))
+                fonts.emplace_back(entry.path().filename().string(), std::move(*font));
         }
 
         return fonts;
@@ -76,31 +54,54 @@ namespace monokakido
 
 
     template<Openable T>
-    std::optional<T> ResourceLoader::tryLoad(const PathType pathType, std::string_view resourceName)
+    std::optional<T> ResourceLoader::tryLoad(const PathType pathType, std::string_view resourceName) const
+    {
+        const auto path = paths_.tryResolve(pathType);
+        return path ? tryLoadResource<T>(*path, resourceName) : std::nullopt;
+    }
+
+
+    std::optional<std::variant<Rsc, Nrsc> > ResourceLoader::tryLoadEither(
+        const PathType pathType, std::string_view resourceName) const
     {
         const auto path = paths_.tryResolve(pathType);
         if (!path)
             return std::nullopt;
 
-        const bool hasResource = std::ranges::any_of(
-            fs::directory_iterator(*path),
+        if (auto nrsc = tryLoadResource<Nrsc>(*path, resourceName))
+            return std::variant<Rsc, Nrsc>(std::move(*nrsc));
+
+        if (auto rsc = tryLoadResource<Rsc>(*path, resourceName))
+            return std::variant<Rsc, Nrsc>(std::move(*rsc));
+
+        return std::nullopt;
+    }
+
+
+    template<Openable T>
+    std::optional<T> ResourceLoader::tryLoadResource(const fs::path& path, std::string_view resourceName) const
+    {
+        if (!hasResourceFiles(path))
+            return std::nullopt;
+
+        auto result = T::open(path);
+        if (!result)
+        {
+            return std::nullopt;
+        }
+
+        return std::move(*result);
+    }
+
+
+    bool ResourceLoader::hasResourceFiles(const fs::path& path)
+    {
+        return std::ranges::any_of(
+            fs::directory_iterator(path),
             [](const auto& entry) {
                 const auto& p = entry.path();
                 return p.extension() == ".rsc" || p.extension() == ".nrsc";
             }
         );
-
-        if (!hasResource)
-            return std::nullopt;
-
-        auto result = T::open(*path);
-        if (!result)
-        {
-            std::cerr << std::format("Failed to open {} at: {}\n{}",
-                                     resourceName, path->string(), result.error());
-            return std::nullopt;
-        }
-
-        return std::move(*result);
     }
 }

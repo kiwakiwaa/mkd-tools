@@ -84,17 +84,21 @@ namespace monokakido::platform::fs {
     }
 
 
-    std::expected<std::filesystem::path, std::string> getValidatedFilePath(const std::filesystem::path& directoryPath, std::string_view filename)
+    std::expected<std::filesystem::path, std::string> findFileWithExtension(const std::filesystem::path& directoryPath, std::string_view extension)
     {
-        auto filePath = directoryPath / filename;
+        if (!std::filesystem::exists(directoryPath))
+            return std::unexpected(std::format("Directory not found: {}", directoryPath.string()));
 
-        if (!std::filesystem::exists(filePath))
-            return std::unexpected(std::format("{} not found in: {}", filename, filePath.parent_path().string()));
+        if (!std::filesystem::is_directory(directoryPath))
+            return std::unexpected(std::format("Not a directory: {}", directoryPath.string()));
 
-        if (std::filesystem::is_directory(filePath))
-            return std::unexpected(std::format("{} not a directory: {}", filename, filePath.string()));
+        for (const auto& entry : std::filesystem::directory_iterator(directoryPath))
+        {
+            if (entry.is_regular_file() && entry.path().extension() == extension)
+                return entry.path();
+        }
 
-        return filePath;
+        return std::unexpected(std::format("No {} file found in: {}", extension, directoryPath.string()));
     }
 
 

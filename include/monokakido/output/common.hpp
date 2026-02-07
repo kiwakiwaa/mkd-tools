@@ -5,13 +5,13 @@
 #pragma once
 
 #include <filesystem>
+#include <functional>
 #include <vector>
 
 namespace fs = std::filesystem;
 
 namespace monokakido
 {
-
     struct ExportResult
     {
         size_t totalResources = 0;
@@ -23,6 +23,17 @@ namespace monokakido
 
         [[nodiscard]] bool hasErrors() const noexcept { return !errors.empty(); }
         [[nodiscard]] bool isSuccess() const noexcept { return failed == 0; }
+
+        ExportResult& operator+=(const ExportResult& other)
+        {
+            totalResources += other.totalResources;
+            exported += other.exported;
+            skipped += other.skipped;
+            failed += other.failed;
+            totalBytes += other.totalBytes;
+            errors.insert(errors.end(), other.errors.begin(), other.errors.end());
+            return *this;
+        }
     };
 
     struct ExportOptions

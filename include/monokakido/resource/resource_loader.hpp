@@ -9,6 +9,7 @@
 #include "monokakido/resource/rsc/rsc.hpp"
 #include "monokakido/resource/font.hpp"
 
+#include <variant>
 
 namespace monokakido
 {
@@ -25,9 +26,9 @@ namespace monokakido
 
         explicit ResourceLoader(const DictionaryPaths& paths);
 
-        [[nodiscard]] std::optional<Rsc> loadEntries();
-        [[nodiscard]] std::optional<Nrsc> loadGraphics();
-        [[nodiscard]] std::optional<Nrsc> loadAudio();
+        [[nodiscard]] std::optional<Rsc> loadEntries() const;
+        [[nodiscard]] std::optional<Nrsc> loadGraphics() const;
+        [[nodiscard]] std::optional<std::variant<Rsc, Nrsc>> loadAudio() const;
         [[nodiscard]] std::vector<Font> loadFonts() const;
 
     private:
@@ -35,7 +36,14 @@ namespace monokakido
         const DictionaryPaths& paths_;
 
         template<Openable T>
-        std::optional<T> tryLoad(PathType pathType, std::string_view resourceName);
+        std::optional<T> tryLoad(PathType pathType, std::string_view resourceName) const;
+
+        std::optional<std::variant<Rsc, Nrsc>> tryLoadEither(PathType pathType, std::string_view resourceName) const;
+
+        template<Openable T>
+        std::optional<T> tryLoadResource(const fs::path& path, std::string_view resourceName) const;
+
+        static bool hasResourceFiles(const fs::path& path) ;
     };
 
 

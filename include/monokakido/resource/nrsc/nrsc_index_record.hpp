@@ -44,35 +44,11 @@ namespace monokakido
 template<>
 struct std::formatter<monokakido::NrscIndexRecord>
 {
-    enum class Style { compact, detailed, hex };
-
-    Style style_ = Style::compact;
-
-    constexpr auto parse(const std::format_parse_context& ctx)
+    static constexpr auto parse(const std::format_parse_context& ctx)
     {
-        auto it = ctx.begin();
+        const auto it = ctx.begin();
         if (it == ctx.end() || *it == '}')
             return it;
-
-        if (*it == '.')
-        {
-            ++it;
-            if (it != ctx.end())
-            {
-                switch (*it)
-                {
-                    case 'c': style_ = Style::compact;
-                        break;
-                    case 'd': style_ = Style::detailed;
-                        break;
-                    case 'h': style_ = Style::hex;
-                        break;
-                    default: throw std::format_error(
-                            std::format("Invalid format specifier for NrscIndexRecord: {}", *it));
-                }
-                ++it;
-            }
-        }
 
         if (it != ctx.end() && *it != '}')
             throw std::format_error("Invalid format specifier for NrscIndexRecord");
@@ -80,39 +56,14 @@ struct std::formatter<monokakido::NrscIndexRecord>
         return ctx.begin();
     }
 
-    auto format(const monokakido::NrscIndexRecord& record, std::format_context& ctx) const
+    static auto format(const monokakido::NrscIndexRecord& record, std::format_context& ctx)
     {
         const char compression = record.compressionFormat() == monokakido::CompressionFormat::Uncompressed ? 'U' : 'Z';
-
-        switch (style_)
-        {
-            case Style::compact:
-                return std::format_to(ctx.out(),
-                    "{}.nrsc@{:#x} ({}) ({})",
-                    record.fileSequence,
-                    record.fileOffset,
-                    record.formattedSize(),
-                    compression);
-
-            case Style::detailed:
-                return std::format_to(ctx.out(),
-                    "Format: {} | File: {}.nrsc | Offset: {:#010x} | Length: {} bytes | ID Offset: {:#x}",
-                    compression == 'U' ? "Uncompressed" : "Zlib",
-                    record.fileSequence,
-                    record.fileOffset,
-                    record.length,
-                    record.idStringOffset);
-
-            case Style::hex:
-                return std::format_to(ctx.out(),
-                    "fmt={:#06x} seq={:#06x} idOff={:#010x} fileOff={:#010x} len={:#010x}",
-                    record.format,
-                    record.fileSequence,
-                    record.idStringOffset,
-                    record.fileOffset,
-                    record.length);
-        }
-
-        return ctx.out();
+        return std::format_to(ctx.out(),
+            "{}.nrsc@{} ({}) ({})",
+            record.fileSequence,
+            record.fileOffset,
+            record.formattedSize(),
+            compression == 'U' ? "Uncompressed" : "Zlib");
     }
 };

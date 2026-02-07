@@ -9,18 +9,17 @@
 #include "monokakido/dictionary/catalog.hpp"
 #include "monokakido/resource/rsc/rsc_index.hpp"
 #include "monokakido/resource/rsc/rsc_data.hpp"
-#include "../common.hpp"
+#include "../test_listener.hpp"
 
-using namespace monokakido::test;
+using namespace monokakido;
 
 class RscIndexTest : public ::testing::Test
 {
 protected:
     void SetUp() override
     {
-        const auto containerPath = monokakido::platform::fs::getContainerPathByGroupIdentifier(
-            monokakido::MONOKAKIDO_GROUP_ID);
-        const auto dictionariesPath = containerPath / monokakido::DICTIONARIES_PATH;
+        const auto containerPath = platform::fs::getContainerPathByGroupIdentifier(MONOKAKIDO_GROUP_ID);
+        const auto dictionariesPath = containerPath / DICTIONARIES_PATH;
 
         testDataPath_ = dictionariesPath / "YDP" / "Contents" / "YDP" / "contents";
     }
@@ -29,31 +28,15 @@ protected:
 };
 
 
-void printMapRecord(uint32_t itemId, const monokakido::MapRecord& record, size_t index = 0)
-{
-    std::cout << std::format("  [{:4}] ID: {:8} | zOffset: {:10} | ioffset: {:6}\n",
-                             index,
-                             itemId,
-                             record.zOffset,
-                             record.ioffset
-    );
-}
-
-
 TEST_F(RscIndexTest, LoadValidIndexFile)
 {
-    auto result = monokakido::RscIndex::load(testDataPath_);
+    auto result = RscIndex::load(testDataPath_);
     ASSERT_TRUE(result.has_value()) << "Failed to load index: " << result.error();
     const auto& index = result.value();
     const size_t recordCount = index.size();
 
-    std::cout << "\n";
-    printSeparator();
-    std::cout << std::format("RSC Index Loaded Successfully from: {}\n", testDataPath_.string());
-    printSeparator();
-    std::cout << std::format("Total Records: {}\n", recordCount);
-    printSeparator();
-    std::cout << "\n";
+    test::verbosePrint("RSC Index Loaded Successfully from: {}\n", testDataPath_.string());
+    test::verbosePrint("Total Records: {}\n", recordCount);
 
     EXPECT_GT(recordCount, 0) << "Index should contain at least one record";
     EXPECT_FALSE(index.empty()) << "Index should not be empty";
@@ -61,15 +44,12 @@ TEST_F(RscIndexTest, LoadValidIndexFile)
 
 TEST_F(RscIndexTest, GetRecordByIndex)
 {
-    const auto indexResult = monokakido::RscIndex::load(testDataPath_);
+    const auto indexResult = RscIndex::load(testDataPath_);
     ASSERT_TRUE(indexResult.has_value());
 
     const auto& index = indexResult.value();
 
-    std::cout << "\n";
-    printSeparator();
-    std::cout << "First 10 Records:\n";
-    printSeparator();
+    test::verbosePrint("First 10 Records:\n");
 
     const size_t displayCount = std::min(index.size(), size_t{10});
 
@@ -79,19 +59,17 @@ TEST_F(RscIndexTest, GetRecordByIndex)
         ASSERT_TRUE(recordResult.has_value()) << "Failed to get record at index " << i;
 
         const auto& [itemId, mapRecord] = recordResult.value();
-        printMapRecord(itemId, mapRecord, i);
+        test::verbosePrint("  [{:4}] ID: {:8} | {}\n", i, itemId, mapRecord);
 
         // Validate record fields are reasonable
         EXPECT_GE(mapRecord.zOffset, 0u) << "zOffset should be non-negative";
         EXPECT_GE(mapRecord.ioffset, 0u) << "ioffset should be non-negative";
     }
-
-    std::cout << "\n";
 }
 
 TEST_F(RscIndexTest, GetOutOfBoundsIndex)
 {
-    const auto indexResult = monokakido::RscIndex::load(testDataPath_);
+    const auto indexResult = RscIndex::load(testDataPath_);
     ASSERT_TRUE(indexResult.has_value());
 
     const auto& index = indexResult.value();
@@ -101,8 +79,7 @@ TEST_F(RscIndexTest, GetOutOfBoundsIndex)
 
     ASSERT_FALSE(result.has_value()) << "Should fail for out of bounds index";
 
-    std::cout << "\n";
-    std::cout << std::format("Expected error (index {} out of range): {}\n\n", invalidIndex, result.error());
+    test::verbosePrint("Expected error (index {} out of range): {}\n", invalidIndex, result.error());
 
     EXPECT_TRUE(result.error().find("out of range") != std::string::npos ||
         result.error().find("invalid index") != std::string::npos);
@@ -110,7 +87,7 @@ TEST_F(RscIndexTest, GetOutOfBoundsIndex)
 
 TEST_F(RscIndexTest, FindRecordById)
 {
-    auto indexResult = monokakido::RscIndex::load(testDataPath_);
+    auto indexResult = RscIndex::load(testDataPath_);
     ASSERT_TRUE(indexResult.has_value());
 
     const auto& index = indexResult.value();
@@ -121,19 +98,15 @@ TEST_F(RscIndexTest, FindRecordById)
 
     const auto& [testItemId, expectedRecord] = recordResult.value();
 
-    std::cout << "\n";
-    printSeparator();
-    std::cout << std::format("Testing findById with itemId: {}\n", testItemId);
-    printSeparator();
+    test::verbosePrint("Testing findById with itemId: {}\n", testItemId);
 
     auto findResult = index.findById(testItemId);
     ASSERT_TRUE(findResult.has_value()) << "Failed to find record by ID: " << testItemId;
 
     const auto& foundRecord = findResult.value();
 
-    std::cout << "Found record:\n";
-    printMapRecord(testItemId, foundRecord);
-    std::cout << "\n";
+    test::verbosePrint("Found record:\n");
+    test::verbosePrint("  [9] ID: {:8} | {}\n", testItemId, foundRecord);
 
     // Verify the found record matches
     EXPECT_EQ(foundRecord.zOffset, expectedRecord.zOffset);

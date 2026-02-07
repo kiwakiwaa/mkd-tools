@@ -40,6 +40,12 @@ namespace monokakido
          */
         [[nodiscard]] std::expected<std::span<const uint8_t>, std::string> get(uint32_t itemId) const;
 
+        /**
+         * Get RscItem by index
+         * @param index index
+         * @return Rscitem or error string if failure
+         */
+        [[nodiscard]] std::expected<RscItem, std::string> getByIndex(size_t index) const;
 
         /**
          * Get total number of records

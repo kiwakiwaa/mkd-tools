@@ -109,10 +109,6 @@ namespace monokakido
 
             const auto& idxRecord = idxRecords[index];
 
-            if (idxRecord.mapIndex() != index)
-                return std::unexpected(std::format("Invalid index: idx record {} points to map index {}",
-                                                   index, idxRecord.mapIndex()));
-
             itemId = idxRecord.id();
         }
         else
@@ -244,10 +240,7 @@ namespace monokakido
 
     std::expected<std::vector<MapRecord>, std::string> RscIndex::loadMapFile(const fs::path& directoryPath)
     {
-        auto filePathResult = platform::fs::getValidatedFilePath(directoryPath, "contents.map");
-        if (!filePathResult)
-            filePathResult = platform::fs::getValidatedFilePath(directoryPath, "font.map");
-
+        auto filePathResult = platform::fs::findFileWithExtension(directoryPath, ".map");
         if (!filePathResult)
             return std::unexpected(filePathResult.error());
 
@@ -270,7 +263,7 @@ namespace monokakido
     std::expected<std::optional<std::vector<IdxRecord>>, std::string> RscIndex::loadIdxFile(const fs::path& directoryPath)
     {
         // index file is optional so no error is returned if it simply isn't found
-        auto filePathResult = platform::fs::getValidatedFilePath(directoryPath, "contents.idx");
+        auto filePathResult = platform::fs::findFileWithExtension(directoryPath, ".idx");
         if (!filePathResult)
             return std::nullopt;
 
