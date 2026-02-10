@@ -31,8 +31,8 @@ namespace monokakido
             return std::unexpected(std::format("Failed to load rsc map at: {}\n{}", directoryPath.string(),
                                                mapResult.error()));
 
-
-        return RscIndex(std::move(*idxResult), std::move(*mapResult));
+        auto& [records, mapVersion] = *mapResult;
+        return RscIndex(mapVersion, std::move(*idxResult), std::move(records));
     }
 
 
@@ -120,6 +120,11 @@ namespace monokakido
         return std::pair{itemId, mapRecords_[index]};
     }
 
+    uint32_t RscIndex::mapVersion() const
+    {
+        return mapVersion_;
+    }
+
 
     size_t RscIndex::size() const noexcept
     {
@@ -133,14 +138,14 @@ namespace monokakido
     }
 
 
-    RscIndex::Iterator::Iterator(const RscIndex* index, size_t pos)
+    RscIndex::Iterator::Iterator(const RscIndex* index, const size_t pos)
         : index_(index), position_(pos)
     {
     }
 
 
-    RscIndex::RscIndex(std::optional<std::vector<IdxRecord>>&& idxRecords, std::vector<MapRecord>&& mapRecords)
-        : idxRecords_(std::move(idxRecords)), mapRecords_(std::move(mapRecords))
+    RscIndex::RscIndex(uint32_t mapVersion, std::optional<std::vector<IdxRecord>>&& idxRecords, std::vector<MapRecord>&& mapRecords)
+        : idxRecords_(std::move(idxRecords)), mapRecords_(std::move(mapRecords)), mapVersion_(mapVersion)
     {
     }
 
@@ -238,7 +243,7 @@ namespace monokakido
         return Iterator{this, size()};
     }
 
-    std::expected<std::vector<MapRecord>, std::string> RscIndex::loadMapFile(const fs::path& directoryPath)
+    std::expected<std::pair<std::vector<MapRecord>, uint32_t>, std::string> RscIndex::loadMapFile(const fs::path& directoryPath)
     {
         auto filePathResult = platform::fs::findFileWithExtension(directoryPath, ".map");
         if (!filePathResult)
@@ -256,7 +261,7 @@ namespace monokakido
         if (!records)
             return std::unexpected(records.error());
 
-        return *records;
+        return std::pair{*records, header->version};
     }
 
 

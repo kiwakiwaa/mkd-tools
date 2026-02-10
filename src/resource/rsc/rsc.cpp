@@ -11,17 +11,13 @@
 
 namespace monokakido
 {
-    std::expected<Rsc, std::string> Rsc::open(const fs::path& directoryPath)
+    std::expected<Rsc, std::string> Rsc::open(const fs::path& directoryPath, std::string_view dictId)
     {
         auto indexResult = RscIndex::load(directoryPath);
         if (!indexResult)
             return std::unexpected(std::format("Failed to load rsc index: {}", indexResult.error()));
 
-        auto dictId = getDictId(directoryPath);
-        if (!dictId)
-            return std::unexpected(std::format("Failed to get dict id from path: {}", directoryPath.string()));
-
-        auto dataResult = RscData::load(directoryPath, *dictId);
+        auto dataResult = RscData::load(directoryPath, dictId);
         if (!dataResult)
             return std::unexpected(std::format("Failed to load rsc data: {}", dataResult.error()));
 

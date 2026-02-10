@@ -14,21 +14,21 @@ namespace monokakido
     }
 
 
-    std::optional<Rsc> ResourceLoader::loadEntries() const
+    std::optional<Rsc> ResourceLoader::loadEntries(std::string_view dictId) const
     {
-        return tryLoad<Rsc>(PathType::Contents, "contents");
+        return tryLoad<Rsc>(PathType::Contents, dictId);
     }
 
 
-    std::optional<Nrsc> ResourceLoader::loadGraphics() const
+    std::optional<Nrsc> ResourceLoader::loadGraphics(std::string_view dictId) const
     {
-        return tryLoad<Nrsc>(PathType::Graphics, "graphics");
+        return tryLoad<Nrsc>(PathType::Graphics, dictId);
     }
 
 
-    std::optional<std::variant<Rsc, Nrsc>> ResourceLoader::loadAudio() const
+    std::optional<std::variant<Rsc, Nrsc>> ResourceLoader::loadAudio(std::string_view dictId) const
     {
-        return tryLoadEither(PathType::Audio, "audio");
+        return tryLoadEither(PathType::Audio, dictId);
     }
 
 
@@ -54,24 +54,23 @@ namespace monokakido
 
 
     template<Openable T>
-    std::optional<T> ResourceLoader::tryLoad(const PathType pathType, std::string_view resourceName) const
+    std::optional<T> ResourceLoader::tryLoad(const PathType pathType, std::string_view dictId) const
     {
         const auto path = paths_.tryResolve(pathType);
-        return path ? tryLoadResource<T>(*path, resourceName) : std::nullopt;
+        return path ? tryLoadResource<T>(*path, dictId) : std::nullopt;
     }
 
 
-    std::optional<std::variant<Rsc, Nrsc> > ResourceLoader::tryLoadEither(
-        const PathType pathType, std::string_view resourceName) const
+    std::optional<std::variant<Rsc, Nrsc> > ResourceLoader::tryLoadEither(const PathType pathType, std::string_view dictId) const
     {
         const auto path = paths_.tryResolve(pathType);
         if (!path)
             return std::nullopt;
 
-        if (auto nrsc = tryLoadResource<Nrsc>(*path, resourceName))
+        if (auto nrsc = tryLoadResource<Nrsc>(*path, dictId))
             return std::variant<Rsc, Nrsc>(std::move(*nrsc));
 
-        if (auto rsc = tryLoadResource<Rsc>(*path, resourceName))
+        if (auto rsc = tryLoadResource<Rsc>(*path, dictId))
             return std::variant<Rsc, Nrsc>(std::move(*rsc));
 
         return std::nullopt;
@@ -79,16 +78,20 @@ namespace monokakido
 
 
     template<Openable T>
-    std::optional<T> ResourceLoader::tryLoadResource(const fs::path& path, std::string_view resourceName) const
+    std::optional<T> ResourceLoader::tryLoadResource(const fs::path& path, std::string_view dictId) const
     {
         if (!hasResourceFiles(path))
             return std::nullopt;
 
-        auto result = T::open(path);
+        auto result = [&]() {
+            if constexpr (std::is_same_v<T, Rsc>)
+                return T::open(path, dictId);
+            else
+                return T::open(path);
+        }();
+
         if (!result)
-        {
             return std::nullopt;
-        }
 
         return std::move(*result);
     }

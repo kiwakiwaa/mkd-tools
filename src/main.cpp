@@ -16,8 +16,8 @@ int main(int argc, char* argv[])
         if (auto available = catalog.findAllAvailable())
         {
             std::ranges::sort(*available, [](const auto& dict1, const auto& dict2) { return dict1.id < dict2.id; });
-            for (auto it = available->begin(); it != available->end(); ++it)
-                std::cout << it->id << '\n';
+            for (auto& [id, path] : *available)
+                std::cout << id << '\n';
 
             std::cout << std::endl;
         }

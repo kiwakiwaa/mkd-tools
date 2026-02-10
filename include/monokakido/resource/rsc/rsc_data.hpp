@@ -5,8 +5,7 @@
 #pragma once
 
 #include "monokakido/resource/rsc/rsc_index.hpp"
-#include "monokakido/resource/rsc/rsc_keystore.hpp"
-#include "monokakido/resource/rsc/rsc_decryptor.hpp"
+#include "monokakido/resource/rsc/rsc_crypto.hpp"
 #include "monokakido/resource/zlib_decompressor.hpp"
 #include "monokakido/core/platform/fs.hpp"
 
@@ -99,9 +98,10 @@ namespace monokakido
          * Initialise RscData form a dictionary containing .rsc files
          * @param directoryPath Directory containing 0.rsc, 1.rsc, etc.
          * @param dictId Dictionary id for decryption key lookup
+         * @param mapVersion Version of the .map file (to determine whether key should be derived or not)
          * @return RscData instance or error string if failure
          */
-        static std::expected<RscData, std::string> load(const fs::path& directoryPath, std::string_view dictId = "");
+        static std::expected<RscData, std::string> load(const fs::path& directoryPath, std::string_view dictId = "", uint32_t mapVersion = 0);
 
         /**
          * Retrieve the data for a dictionary entry

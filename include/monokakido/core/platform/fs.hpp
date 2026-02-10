@@ -36,8 +36,7 @@ namespace monokakido::platform::fs
         template<typename T>
         [[nodiscard]] std::expected<T, std::string> readStruct()
         {
-            static_assert(SwappableEndianness<T>,
-                          "Type must inherit from BinaryStruct and implement swapEndianness()");
+            static_assert(SwappableEndianness<T>, "Type must inherit from BinaryStruct and implement swapEndianness()");
 
             T data{};
             file_.read(reinterpret_cast<char*>(&data), sizeof(T));
@@ -46,6 +45,32 @@ namespace monokakido::platform::fs
                 return std::unexpected(makeFilestreamError(file_, std::format("read {} struct", typeid(T).name())));
 
             data.toLittleEndian();
+
+            return data;
+        }
+
+        template<typename T>
+        [[nodiscard]] std::expected<T, std::string> readStructPartial(const size_t size)
+        {
+            static_assert(std::is_trivially_copyable_v<T>, "Type must be trivially copyable");
+
+            T data{};
+            const size_t bytesToRead = std::min(size, sizeof(T));
+
+            auto bytesResult = readBytes(bytesToRead);
+            if (!bytesResult)
+                return std::unexpected(bytesResult.error());
+
+            std::memcpy(&data, bytesResult->data(), bytesToRead);
+
+            // For types that need endian swapping
+            if constexpr (requires { data.swapEndianness(); })
+            {
+                if constexpr (std::endian::native == std::endian::big)
+                {
+                    data.swapEndianness();
+                }
+            }
 
             return data;
         }

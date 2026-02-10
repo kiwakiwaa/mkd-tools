@@ -90,6 +90,8 @@ namespace monokakido
 
         [[nodiscard]] std::expected<std::pair<uint32_t, MapRecord>, std::string> getByIndex(size_t index) const;
 
+        [[nodiscard]] uint32_t mapVersion() const;
+
         [[nodiscard]] size_t size() const noexcept;
 
         [[nodiscard]] bool empty() const noexcept;
@@ -140,13 +142,14 @@ namespace monokakido
         static_assert(std::random_access_iterator<Iterator>);
 
     private:
-        RscIndex(std::optional<std::vector<IdxRecord>>&& idxRecords, std::vector<MapRecord>&& mapRecords);
+        RscIndex(uint32_t mapVersion, std::optional<std::vector<IdxRecord>>&& idxRecords, std::vector<MapRecord>&& mapRecords);
 
-        static std::expected<std::vector<MapRecord>, std::string> loadMapFile(const fs::path& directoryPath);
+        static std::expected<std::pair<std::vector<MapRecord>, uint32_t>, std::string> loadMapFile(const fs::path& directoryPath);
 
         static std::expected<std::optional<std::vector<IdxRecord>>, std::string> loadIdxFile(const fs::path& directoryPath);
 
         std::optional<std::vector<IdxRecord>> idxRecords_;
         std::vector<MapRecord> mapRecords_;
+        uint32_t mapVersion_ = 0;
     };
 }

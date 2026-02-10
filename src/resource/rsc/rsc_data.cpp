@@ -9,7 +9,7 @@
 
 namespace monokakido
 {
-    std::expected<RscData, std::string> RscData::load(const fs::path& directoryPath, std::string_view dictId)
+    std::expected<RscData, std::string> RscData::load(const fs::path& directoryPath, std::string_view dictId, const uint32_t mapVersion)
     {
         auto filesResult = discoverFiles(directoryPath);
         if (!filesResult)
@@ -29,9 +29,13 @@ namespace monokakido
             globalOffset += files[i].length;
         }
 
+        std::optional<std::array<uint8_t, 32>> key;
+        if (mapVersion == 1 && !dictId.empty())
+            key = RscCrypto::deriveKey(dictId);
+
         return RscData{
             std::move(files),
-            RscKeyStore::getKey(dictId)
+            key
         };
     }
 
@@ -173,7 +177,7 @@ namespace monokakido
         if (auto result = reader.readBytes(encryptedData); !result)
             return std::unexpected(result.error());
 
-        return RscDecryptor::decrypt(encryptedData, *decryptionKey_);
+        return RscCrypto::decrypt(encryptedData, *decryptionKey_);
     }
 
 

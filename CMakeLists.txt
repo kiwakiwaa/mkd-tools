@@ -81,10 +81,10 @@ add_library(monokakido_resource STATIC
         src/resource/rsc/rsc_index_record.cpp
         src/resource/rsc/rsc_map.cpp
         src/resource/xml_view.cpp
-        src/resource/rsc/rsc_keystore.cpp
-        src/resource/rsc/rsc_decryptor.cpp
+        src/resource/rsc/rsc_crypto.cpp
         src/resource/rsc/rsc.cpp
         src/resource/font.cpp
+        src/utils/kana_convert.cpp
 )
 
 target_link_libraries(monokakido_resource PRIVATE
@@ -124,6 +124,7 @@ if (BUILD_TESTING)
             test/rsc/test_rsc_data.cpp
             test/rsc/test_rsc_index.cpp
             test/main.cpp
+            test/keystore/test_keystore.cpp
     )
 
     add_executable(monokakido_extractor_tests

@@ -22,6 +22,7 @@ namespace monokakido
         [[nodiscard]] std::optional<std::string> displayName() const;
         [[nodiscard]] std::optional<std::string> description() const;
         [[nodiscard]] std::optional<std::string> publisher() const;
+        [[nodiscard]] std::optional<std::string> contentIdentifier() const;
 
         [[nodiscard]] std::optional<fs::path> contentDirectoryName() const;
 

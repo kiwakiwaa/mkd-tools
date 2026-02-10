@@ -24,7 +24,7 @@ protected:
         const auto containerPath = platform::fs::getContainerPathByGroupIdentifier(MONOKAKIDO_GROUP_ID);
         const auto dictionariesPath = containerPath / DICTIONARIES_PATH;
 
-        dictId_ = "KJT";
+        dictId_ = "KJT.J";
         testDataPath_ = dictionariesPath / "KJT" / "Contents" / "KJT" / "contents";
 
         testFontDataPath_ = dictionariesPath / "KOGO3" / "Contents" / "ozk5" / "fonts" / "YuMinPr6N-R";
@@ -53,7 +53,7 @@ TEST_F(RscDataTest, GetRecordData)
     auto indexResult = RscIndex::load(testDataPath_);
     ASSERT_TRUE(indexResult.has_value());
 
-    auto dataResult = RscData::load(testDataPath_, dictId_);
+    auto dataResult = RscData::load(testDataPath_, dictId_, indexResult->mapVersion());
     ASSERT_TRUE(dataResult.has_value());
 
     auto& rscData = dataResult.value();

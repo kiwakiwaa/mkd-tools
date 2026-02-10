@@ -31,7 +31,7 @@ namespace monokakido
          * @param directoryPath Directory path containing the .idx/.map & .rsc files
          * @return
          */
-        static std::expected<Rsc, std::string> open(const fs::path& directoryPath);
+        static std::expected<Rsc, std::string> open(const fs::path& directoryPath, std::string_view dictId);
 
         /**
          * This will basically look up the itemId first with RscIndex, if it finds a

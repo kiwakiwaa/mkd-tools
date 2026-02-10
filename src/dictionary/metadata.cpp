@@ -56,6 +56,16 @@ namespace monokakido
     }
 
 
+    std::optional<std::string> DictionaryMetadata::contentIdentifier() const
+    {
+        const auto name = json_["DSProductContents"][0]["DSContentIdentifier"].get<std::string>();
+        if (!name)
+            return std::nullopt;
+
+        return name.value();
+    }
+
+
     std::optional<fs::path> DictionaryMetadata::contentDirectoryName() const
     {
         const auto name = json_["DSProductContents"][0]["DSContentDirectory"].get<std::string>();

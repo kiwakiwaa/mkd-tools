@@ -25,13 +25,17 @@ namespace monokakido
 
     std::expected<Dictionary, std::string> Dictionary::openAtPath(const fs::path& path)
     {
-        auto dictId = path.stem().string();
-
         auto metadata = DictionaryMetadata::loadFromPath(
-            path / "Contents" / (dictId + ".json")
+            path / "Contents" / (path.stem().string() + ".json")
         );
         if (!metadata)
             return std::unexpected(std::format("Failed to load dictionary metadata: '{}'", metadata.error()));
+
+        auto dictIdResult = metadata->contentIdentifier();
+        if (!dictIdResult)
+            return std::unexpected(std::format("Failed to load content identifier for '{}'", path.stem().string()));
+
+        auto& dictId = dictIdResult.value();
 
         auto paths = DictionaryPaths::create(path, metadata.value());
         if (!paths)
@@ -39,9 +43,9 @@ namespace monokakido
 
         ResourceLoader loader(*paths);
 
-        auto entries = loader.loadEntries();
-        auto audio = loader.loadAudio();
-        auto graphics = loader.loadGraphics();
+        auto entries = loader.loadEntries(dictId);
+        auto audio = loader.loadAudio(dictId);
+        auto graphics = loader.loadGraphics(dictId);
         auto fonts = loader.loadFonts();
 
         return Dictionary(

@@ -161,32 +161,6 @@ namespace monokakido
         [[nodiscard]] std::expected<std::string_view, std::string> getIdAt(size_t offset) const;
 
 
-        /**
-         * Read and validate the index file header
-         * @param file index filestream
-         * @return Indexheader or error string if failure
-         */
-        static std::expected<IndexHeader, std::string> readHeader(std::ifstream& file);
-
-
-        /**
-         * Read all index records and convert to native endianness
-         * @param file index filestream
-         * @param count number of records
-         * @return Vector of index records or error string if failure
-         */
-        static std::expected<std::vector<NrscIndexRecord>, std::string> readRecords(std::ifstream& file, uint32_t count);
-
-
-        /**
-         * Read the ID strings region
-         * @param file index filestream
-         * @param stringRegionSize size of the string region
-         * @return null-terminated concatenated strings or error string if failure
-         */
-        static std::expected<std::string, std::string> readIdStrings(std::ifstream& file, size_t stringRegionSize);
-
-
         std::vector<NrscIndexRecord> records_;  // All index records, sorted by ID
         std::string idStrings_;                 // Concatenated null-terminated ID strings
         size_t headerSize_;                     // Header + records size (for offset calculations)
