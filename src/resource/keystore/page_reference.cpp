@@ -4,6 +4,8 @@
 
 #include "monokakido/resource/keystore/page_reference.hpp"
 
+#include <bit>
+#include <format>
 
 namespace monokakido
 {
@@ -61,14 +63,14 @@ namespace monokakido
         if (flags & 0x40)
         {
             if (offset + 1 > data.size())
-                return std::unexpected("Truncated subitem field");
+                return std::unexpected("Truncated extra field");
             entry.extra = data[offset];
             offset += 1;
         }
         else if (flags & 0x80)
         {
             if (offset + 2 > data.size())
-                return std::unexpected("Truncated subitem field");
+                return std::unexpected("Truncated extra field");
             entry.extra = (static_cast<uint16_t>(data[offset]) << 8) |
                           data[offset + 1];
             offset += 2;
@@ -87,52 +89,35 @@ namespace monokakido
         return entry;
     }
 
-    PageReferenceIterator::value_type PageReferenceIterator::operator*() const
+    std::expected<std::vector<PageReference>, std::string> decodePageReferences(const std::span<const uint8_t> data)
     {
-        if (remaining_ == 0 || data_.empty())
-            return PageReference{0, 0};
+        if (data.size() < 2)
+            return std::unexpected(std::format(
+                "Page reference block too small: {} bytes", data.size()));
 
-        // Decode current entry without modifying state
-        const auto decoded = decodeKeystoreEntry(data_);
-        if (!decoded)
-            return PageReference{0, 0};
+        uint16_t count;
+        std::memcpy(&count, data.data(), sizeof(uint16_t));
+        if constexpr (std::endian::native == std::endian::big)
+            count = std::byteswap(count);
 
-        return PageReference{
-            decoded->page,
-            decoded->item
-        };
-    }
+        auto remaining = data.subspan(2);
+        std::vector<PageReference> refs;
+        refs.reserve(count);
 
-    PageReferenceIterator& PageReferenceIterator::operator++()
-    {
-        if (remaining_ == 0 || data_.empty())
-            return *this;
-
-        // Decode to find how many bytes to skip
-        const auto decoded = decodeKeystoreEntry(data_);
-        if (!decoded || decoded->bytesConsumed > data_.size())
+        for (uint16_t i = 0; i < count; ++i)
         {
-            remaining_ = 0;
-            data_ = {};
-            return *this;
+            auto decoded = decodeKeystoreEntry(remaining);
+            if (!decoded)
+                return std::unexpected(std::format(
+                    "Failed to decode entry {}/{}: {}", i, count, decoded.error()));
+
+            if (decoded->bytesConsumed > remaining.size())
+                return std::unexpected("Entry overflows page data block");
+
+            refs.push_back({decoded->page, decoded->item});
+            remaining = remaining.subspan(decoded->bytesConsumed);
         }
 
-        // Advance to next entry
-        data_ = data_.subspan(decoded->bytesConsumed);
-        --remaining_;
-        return *this;
-    }
-
-    PageReferenceIterator PageReferenceIterator::operator++(int)
-    {
-        const auto copy = *this;
-        ++*this;
-        return copy;
-    }
-
-
-    bool PageReferenceIterator::operator==(const PageReferenceIterator& other) const noexcept
-    {
-        return remaining_ == other.remaining_;
+        return refs;
     }
 }

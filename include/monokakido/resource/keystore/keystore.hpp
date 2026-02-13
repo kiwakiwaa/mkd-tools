@@ -27,16 +27,16 @@ namespace monokakido
      * File Structure:
      * ┌─────────────────────────────────────────────────────────┐
      * │ File Header (16 or 32 bytes)                            │
-     * │  - Version (4 bytes) - 0x10000 or 0x20000               │
+     * │  - Version (4 bytes) — 0x10000 (v1) or 0x20000 (v2)    │
      * │  - Magic fields (must be 0)                             │
      * │  - Words offset                                         │
      * │  - Index offset                                         │
-     * │  - Next offset (v2 only)                                │
+     * │  - Next offset (v2 only, points to conversion table)    │
      * ├─────────────────────────────────────────────────────────┤
      * │ Words Section (variable length)                         │
-     * │  - uint32 pages_offset (offset to page data)            │
-     * │  - uint8 separator (0x00)                               │
-     * │  - Null-terminated search term string                   │
+     * │  - uint32_le  pages_offset                              │
+     * │  - uint8      separator (0x00)                          │
+     * │  - Null-terminated UTF-8 search term                    │
      * │  - Page reference data (variable-length encoded)        │
      * ├─────────────────────────────────────────────────────────┤
      * │ Index Header (20 bytes)                                 │
@@ -44,33 +44,37 @@ namespace monokakido
      * │  - Four index offsets (A, B, C, D)                      │
      * ├─────────────────────────────────────────────────────────┤
      * │ Index Sections A, B, C, D (variable length each)        │
-     * │  - First uint32: count of entries                       │
-     * │  - Remaining uint32s: offsets into words section        │
+     * │  - uint32_le count                                      │
+     * │  - uint32_le[] offsets into words section               │
+     * ├─────────────────────────────────────────────────────────┤
+     * │ Conversion Table (optional, v2 only)                    │
+     * │  - uint32_le count                                      │
+     * │  - ConversionEntry[count]                               │
      * └─────────────────────────────────────────────────────────┘
      */
+
     constexpr uint32_t KEYSTORE_V1 = 0x10000;
     constexpr uint32_t KEYSTORE_V2 = 0x20000;
     constexpr uint32_t INDEX_MAGIC = 0x04;
 
-    // Which index array to use
     enum class KeystoreIndex : size_t
     {
-        Length = 0,   // Index A - sorted by key length
-        Prefix = 1,   // Index B - sorted by key (prefix search)
-        Suffix = 2,   // Index C - sorted by key suffix
-        Other  = 3,   // Index D - conversion table
+        Length = 0, // Index A — sorted by key length
+        Prefix = 1, // Index B — sorted by key (prefix search)
+        Suffix = 2, // Index C — sorted by key suffix
+        Other = 3, // Index D — conversion table / other
     };
 
     struct KeystoreHeader : BinaryStruct<KeystoreHeader>
     {
-        uint32_t version;       // 0x10000 or 0x20000
-        uint32_t magic1;        // Must be 0
-        uint32_t wordsOffset;   // Offset to words section
-        uint32_t idxOffset;     // Offset to index section
-        uint32_t nextOffset;    // V2 only: offset to next section (or 0)
-        uint32_t magic5;        // V2 only: must be 0
-        uint32_t magic6;        // V2 only: must be 0
-        uint32_t magic7;        // V2 only: must be 0
+        uint32_t version; // 0x10000 or 0x20000
+        uint32_t magic1; // Must be 0
+        uint32_t wordsOffset; // Offset to words section
+        uint32_t idxOffset; // Offset to index section
+        uint32_t nextOffset; // Offset to conversion table (or 0)
+        uint32_t magic5; // Must be 0
+        uint32_t magic6; // Must be 0
+        uint32_t magic7; // Must be 0
 
         [[nodiscard]] size_t headerSize() const noexcept;
 
@@ -79,156 +83,135 @@ namespace monokakido
 
     struct IndexHeader : BinaryStruct<IndexHeader>
     {
-        uint32_t magic;         // Must be 0x04
-        uint32_t indexAOffset;  // Offset to index A (length index)
-        uint32_t indexBOffset;  // Offset to index B (prefix index)
-        uint32_t indexCOffset;  // Offset to index C (suffix index)
-        uint32_t indexDOffset;  // Offset to index D (conversion table)
+        uint32_t magic; // Must be 0x04
+        uint32_t indexAOffset;
+        uint32_t indexBOffset;
+        uint32_t indexCOffset;
+        uint32_t indexDOffset;
 
         void swapEndianness() noexcept;
     };
 
+    struct ConversionEntry
+    {
+        uint32_t page;
+        uint16_t item;
+        uint16_t padding;
+    };
+
+    static_assert(sizeof(ConversionEntry) == 8);
 
     class Keystore
     {
     public:
         /**
-         * Loads a keystore file from disk.
+         * Load a keystore file from disk.
          *
-         * Reads and validates the file, parsing all index arrays.
-         * The file data is kept in memory for subsequent lookups.
+         * The entire file is read into memory. Index arrays and the optional
+         * conversion table are parsed eagerly.
          *
-         * @param path Path to the .keystore file
-         * @return The loaded Keystore, or an error message if loading failed
+         * @param path    Path to the .keystore file
+         * @param dictId  Dictionary identifier (e.g. "KNEJ"). Used to decide
+         *                whether automatic key-ID conversion is applied.
+         * @return Loaded Keystore, or an error string
          */
-        static std::expected<Keystore, std::string> load(const fs::path& path);
-
-        /**
-         * Retrieves an entry by its position within an index.
-         *
-         * @param indexType Which index array to use
-         * @param index position within the index
-         * @return The lookup result containing the key and page references,
-         *         or an error if the index type is invalid or index is out of bounds
-         */
-        [[nodiscard]] std::expected<KeystoreLookupResult, std::string> getByIndex(KeystoreIndex indexType, size_t index) const;
+        static std::expected<Keystore, std::string> load(const fs::path& path, const std::string& dictId);
 
 
         /**
-         * Returns the number of entries in an index.
+         * Look up an entry by its position within an index.
          *
-         * @param indexType Which index array to query
-         * @return Entry count, or 0 if the index type is invalid or doesn't exist
+         * For dictionaries that require it (KNEJ, KNJE), page references are
+         * automatically converted via the embedded conversion table.
+         *
+         * @param indexType  Which index to query
+         * @param index      Position within that index
+         * @return Lookup result with key and page references, or an error
+         */
+        [[nodiscard]] std::expected<KeystoreLookupResult, std::string> getByIndex(
+            KeystoreIndex indexType, size_t index) const;
+
+        /**
+         * @return Number of entries in the given index (0 if the index doesn't exist).
          */
         [[nodiscard]] size_t indexSize(KeystoreIndex indexType) const noexcept;
 
     private:
-        /*
-         * Private constructor - use load(const fs::path& path)
-         */
-        explicit Keystore(
+        Keystore(
             std::vector<uint8_t>&& fileData,
             std::vector<uint32_t>&& indexLength,
             std::vector<uint32_t>&& indexPrefix,
             std::vector<uint32_t>&& indexSuffix,
             std::vector<uint32_t>&& indexD,
             size_t wordsOffset,
-            bool hasConversionTable
+            std::span<const ConversionEntry> conversionTable,
+            std::string dictId
         );
 
-        /**
-         * Maps an index type enum to its corresponding vector.
-         *
-         * @param type The index type to look up
-         * @return Pointer to the index vector, or nullptr for invalid types
-         */
         [[nodiscard]] const std::vector<uint32_t>* getIndexArray(KeystoreIndex type) const noexcept;
 
-
         /**
-         * Parses a word entry from the words section.
+         * Parse a word entry from the words section.
          *
-         * Word entries have the format:
-         *   uint32 pages_offset | 0x00 | null-terminated string
-         *
-         * @param wordOffset Offset from start of words section
-         * @return Parsed entry with key string and pages offset, or error
+         * Layout:  uint32_le pages_offset | 0x00 | null-terminated string
          */
-        [[nodiscard]] std::expected<KeystoreWordEntry, std::string> getWordEntry(uint32_t wordOffset) const;
-
-
-        /**
-         * Constructs a complete lookup result from parsed components.
-         *
-         * @param key The search term
-         * @param pagesOffset Offset to page reference data
-         * @param index Original index position
-         * @return Complete lookup result with page iterator, or error
-         */
-        [[nodiscard]] std::expected<KeystoreLookupResult, std::string> buildLookupResult(std::string_view key, size_t pagesOffset, size_t index) const;
-
-
-        /**
-         * Creates an iterator over page references at the given offset.
-         *
-         * Page data format:
-         *   uint16 count | variable-length encoded PageReference entries
-         *
-         * Validates all entries can be decoded before returning.
-         *
-         * @param pagesOffset Offset from start of words section
-         * @return Iterator positioned at first page reference, or error
-         */
-        [[nodiscard]] std::expected<PageReferenceIterator, std::string> getPageIterator(size_t pagesOffset) const;
-
-
-        /**
-         * Reads and validates the file header.
-         *
-         * @param reader File reader positioned at start of file
-         * @return Parsed header, or error message
-         */
-        static std::expected<KeystoreHeader, std::string> readHeader(platform::fs::BinaryFileReader& reader);
-
-
-        /**
-         * Reads and validates the index section header.
-         *
-         * @param data Buffer containing index section
-         * @param maxSize Maximum valid offset within the index section
-         * @return Parsed index header, or error message
-         */
-        static std::expected<IndexHeader, std::string> readIndexHeader(std::span<const uint8_t> data,
-                                                                       size_t maxSize);
-
-        struct Indices
+        struct WordEntry
         {
-            std::vector<uint32_t> indexA, indexB, indexC, indexD;
+            std::string_view key;
+            size_t pagesOffset; // words-section-relative
         };
 
+        [[nodiscard]] std::expected<WordEntry, std::string> parseWordEntry(uint32_t wordOffset) const;
 
         /**
-         * Reads all four index arrays from the index section.
-         *
-         * Each index has the format:
-         *   uint32 count | uint32[] word_offsets
-         *
-         * @param data Buffer containing index section
-         * @param header Parsed index header with offsets
-         * @param maxSize Size of the index section in bytes
-         * @return All four index arrays, or error message
+         * Decode page references at the given words-section-relative offset.
          */
-        static std::expected<Indices, std::string> readIndices(
-            std::span<const uint8_t> data,
-            const IndexHeader& header,
-            size_t maxSize);
+        [[nodiscard]] std::expected<std::vector<PageReference>, std::string> decodePages(size_t pagesOffset) const;
+
+        /**
+         * @return true if this dictionary needs automatic key-ID conversion.
+         */
+        [[nodiscard]] bool needsConversion() const noexcept;
+
+        /**
+         * Apply the conversion table in-place.
+         */
+        void applyConversion(std::vector<PageReference>& refs) const noexcept;
+
+        // File format parsing
+        static std::expected<KeystoreHeader, std::string> readHeader(platform::fs::BinaryFileReader& reader);
+
+        static std::expected<IndexHeader, std::string> readIndexHeader(std::span<const uint8_t> data, size_t maxSize);
+
+        struct IndexArrays
+        {
+            std::vector<uint32_t> length, prefix, suffix, other;
+        };
+
+        static std::expected<IndexArrays, std::string> readAllIndices(std::span<const uint8_t> data,
+                                                                      const IndexHeader& header, size_t maxSize);
+
+        /**
+         * Read a single index array.
+         *
+         * Format: uint32_le count | uint32_le[count] offsets
+         *
+         * @param data   Buffer starting at the index section
+         * @param start  Byte offset of this index within `data`
+         * @param end    Byte offset of the next index (or section end)
+         * @return Offset array (count element removed), or error
+         */
+        static std::expected<std::vector<uint32_t>, std::string> readSingleIndex(
+            std::span<const uint8_t> data, uint32_t start, uint32_t end);
 
         std::vector<uint8_t> fileData_;
-        std::vector<uint32_t> indexLength_;  // Index A
-        std::vector<uint32_t> indexPrefix_;  // Index B
-        std::vector<uint32_t> indexSuffix_;  // Index C
-        std::vector<uint32_t> indexD_;       // Index D
+        std::vector<uint32_t> indexLength_; // Index A
+        std::vector<uint32_t> indexPrefix_; // Index B
+        std::vector<uint32_t> indexSuffix_; // Index C
+        std::vector<uint32_t> indexOther_; // Index D
         size_t wordsOffset_;
-        bool hasConversionTable_;
+
+        std::span<const ConversionEntry> conversionTable_;
+        std::string dictId_;
     };
 }

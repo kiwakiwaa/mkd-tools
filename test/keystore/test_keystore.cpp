@@ -28,7 +28,7 @@ protected:
 
 TEST_F(KeystoreTest, LoadValidKeystoreFile)
 {
-    auto result2 = Keystore::load(testHeadwords_);
+    auto result2 = Keystore::load(testHeadwords_, "KNEJ");
     ASSERT_TRUE(result2.has_value()) << "Failed to load keystore: " << result2.error();
 
     auto& keystore = result2.value();

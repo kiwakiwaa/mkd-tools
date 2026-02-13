@@ -4,6 +4,10 @@
 
 #include "monokakido/resource/keystore/keystore.hpp"
 
+#include <bit>
+#include <format>
+#include <utility>
+
 
 namespace monokakido
 {
@@ -15,93 +19,21 @@ namespace monokakido
         nextOffset = std::byteswap(nextOffset);
     }
 
-
     size_t KeystoreHeader::headerSize() const noexcept
     {
-        return version == 0x10000 ? 16 : 32;
+        return version == KEYSTORE_V1 ? 16 : 32;
     }
 
-    std::expected<Keystore, std::string> Keystore::load(const fs::path& path)
+
+    void IndexHeader::swapEndianness() noexcept
     {
-        auto readerResult = platform::fs::BinaryFileReader::open(path);
-        if (!readerResult)
-            return std::unexpected(readerResult.error());
-        auto& reader = *readerResult;
-
-        // Get file size for validation
-        const size_t fileSize = reader.remainingBytes();
-        auto headerResult = readHeader(reader);
-        if (!headerResult)
-            return std::unexpected(headerResult.error());
-        auto& header = *headerResult;
-
-        // Read entire file into memory
-        if (auto seekResult = reader.seek(0); !seekResult)
-            return std::unexpected(seekResult.error());
-
-        auto fileDataResult = reader.readBytes(fileSize);
-        if (!fileDataResult)
-            return std::unexpected(fileDataResult.error());
-
-        std::vector<uint8_t> fileData = std::move(*fileDataResult);
-
-        // Read and validate index header
-        const size_t indexEnd = header.nextOffset == 0 ? fileSize : header.nextOffset;
-
-        auto indexHeaderResult = readIndexHeader(std::span(fileData).subspan(header.idxOffset),
-                                                 indexEnd - header.idxOffset);
-        if (!indexHeaderResult)
-            return std::unexpected(indexHeaderResult.error());
-
-        IndexHeader idxHeader = *indexHeaderResult;
-
-        // Read the four indices
-        auto indices = readIndices(
-            std::span(fileData).subspan(header.idxOffset),
-            idxHeader,
-            indexEnd - header.idxOffset
-        );
-        if (!indices)
-            return std::unexpected(indices.error());
-
-        return Keystore(
-            std::move(fileData),
-            std::move(indices->indexA),
-            std::move(indices->indexB),
-            std::move(indices->indexC),
-            std::move(indices->indexD),
-            header.wordsOffset,
-            header.version == KEYSTORE_V2
-        );
+        magic = std::byteswap(magic);
+        indexAOffset = std::byteswap(indexAOffset);
+        indexBOffset = std::byteswap(indexBOffset);
+        indexCOffset = std::byteswap(indexCOffset);
+        indexDOffset = std::byteswap(indexDOffset);
     }
 
-
-    std::expected<KeystoreLookupResult, std::string> Keystore::getByIndex(
-        const KeystoreIndex indexType, const size_t index) const
-    {
-        const auto* indexPtr = getIndexArray(indexType);
-        if (!indexPtr)
-            return std::unexpected("Invalid index type");
-        if (indexPtr->empty())
-            return std::unexpected("Index does not exist");
-        if (index >= indexPtr->size())
-            return std::unexpected("Index out of bounds");
-
-        const uint32_t wordOffset = (*indexPtr)[index];
-
-        auto entry = getWordEntry(wordOffset);
-        if (!entry)
-            return std::unexpected(entry.error());
-
-        return buildLookupResult(entry->key, entry->pagesOffset, index);
-    }
-
-
-    size_t Keystore::indexSize(const KeystoreIndex indexType) const noexcept
-    {
-        const auto* ptr = getIndexArray(indexType);
-        return ptr ? ptr->size() : 0;
-    }
 
     Keystore::Keystore(
         std::vector<uint8_t>&& fileData,
@@ -110,149 +42,243 @@ namespace monokakido
         std::vector<uint32_t>&& indexSuffix,
         std::vector<uint32_t>&& indexD,
         const size_t wordsOffset,
-        const bool hasConversionTable)
+        const std::span<const ConversionEntry> conversionTable,
+        std::string dictId)
         : fileData_(std::move(fileData))
           , indexLength_(std::move(indexLength))
           , indexPrefix_(std::move(indexPrefix))
           , indexSuffix_(std::move(indexSuffix))
-          , indexD_(std::move(indexD))
+          , indexOther_(std::move(indexD))
           , wordsOffset_(wordsOffset)
-          , hasConversionTable_(hasConversionTable)
+          , conversionTable_(conversionTable)
+          , dictId_(std::move(dictId))
     {
     }
 
 
-    const std::vector<uint32_t>* Keystore::getIndexArray(const KeystoreIndex type) const noexcept
+    std::expected<Keystore, std::string>
+    Keystore::load(const fs::path& path, const std::string& dictId)
+    {
+        auto readerResult = platform::fs::BinaryFileReader::open(path);
+        if (!readerResult)
+            return std::unexpected(readerResult.error());
+        auto& reader = *readerResult;
+
+        const size_t fileSize = reader.remainingBytes();
+
+        // Parse file header
+        auto headerResult = readHeader(reader);
+        if (!headerResult)
+            return std::unexpected(headerResult.error());
+        const auto& header = *headerResult;
+
+        // Read entire file into memory
+        if (auto r = reader.seek(0); !r)
+            return std::unexpected(r.error());
+
+        auto fileDataResult = reader.readBytes(fileSize);
+        if (!fileDataResult)
+            return std::unexpected(fileDataResult.error());
+        auto fileData = std::move(*fileDataResult);
+
+        // Parse index section
+        const size_t indexEnd = header.nextOffset != 0 ? header.nextOffset : fileSize;
+        const auto indexSpan = std::span(fileData).subspan(header.idxOffset, indexEnd - header.idxOffset);
+
+        auto idxHeaderResult = readIndexHeader(indexSpan, indexSpan.size());
+        if (!idxHeaderResult)
+            return std::unexpected(idxHeaderResult.error());
+
+        auto indices = readAllIndices(indexSpan, *idxHeaderResult, indexSpan.size());
+        if (!indices)
+            return std::unexpected(indices.error());
+
+        // Parse conversion table (v2 only)
+        std::span<const ConversionEntry> conversionTable;
+        if (header.nextOffset != 0)
+        {
+            const uint8_t* tableBase = fileData.data() + header.nextOffset;
+            const size_t tableBytes = fileSize - header.nextOffset;
+
+            if (tableBytes < 4)
+                return std::unexpected("Conversion table header truncated");
+
+            uint32_t tableCount;
+            std::memcpy(&tableCount, tableBase, 4);
+            if constexpr (std::endian::native == std::endian::big)
+                tableCount = std::byteswap(tableCount);
+
+            if (const size_t requiredBytes = 4 + static_cast<size_t>(tableCount) * sizeof(ConversionEntry);
+                requiredBytes > tableBytes)
+                return std::unexpected("Conversion table extends past end of file");
+
+            auto* entries = reinterpret_cast<const ConversionEntry*>(tableBase + 4);
+            conversionTable = std::span(entries, tableCount);
+        }
+
+        return Keystore(
+            std::move(fileData),
+            std::move(indices->length),
+            std::move(indices->prefix),
+            std::move(indices->suffix),
+            std::move(indices->other),
+            header.wordsOffset,
+            conversionTable,
+            dictId
+        );
+    }
+
+
+    std::expected<KeystoreLookupResult, std::string> Keystore::getByIndex(const KeystoreIndex indexType, const size_t index) const
+    {
+        const auto* arr = getIndexArray(indexType);
+        if (!arr)
+            return std::unexpected("Invalid index type");
+        if (arr->empty())
+            return std::unexpected("Index does not exist");
+        if (index >= arr->size())
+            return std::unexpected(std::format(
+                "Index out of bounds: {} >= {}", index, arr->size()));
+
+        // Parse the word entry (key string + pages offset)
+        auto entry = parseWordEntry((*arr)[index]);
+        if (!entry)
+            return std::unexpected(entry.error());
+
+        // Decode all page references eagerly
+        auto pages = decodePages(entry->pagesOffset);
+        if (!pages)
+            return std::unexpected(pages.error());
+
+        // Apply conversion for KNEJ & KNJE
+        if (needsConversion())
+            applyConversion(*pages);
+
+        return KeystoreLookupResult{
+            .key = entry->key,
+            .index = index,
+            .pages = std::move(*pages),
+        };
+    }
+
+
+    size_t Keystore::indexSize(const KeystoreIndex indexType) const noexcept
+    {
+        const auto* arr = getIndexArray(indexType);
+        return arr ? arr->size() : 0;
+    }
+
+
+    const std::vector<uint32_t>*
+    Keystore::getIndexArray(const KeystoreIndex type) const noexcept
     {
         switch (type)
         {
             case KeystoreIndex::Length: return &indexLength_;
             case KeystoreIndex::Prefix: return &indexPrefix_;
             case KeystoreIndex::Suffix: return &indexSuffix_;
-            case KeystoreIndex::Other: return &indexD_;
-            default: return nullptr;
+            case KeystoreIndex::Other: return &indexOther_;
         }
+        return nullptr; // unreachable with valid enum, but keeps compilers happy
     }
 
 
-    std::expected<KeystoreWordEntry, std::string> Keystore::getWordEntry(const uint32_t wordOffset) const
+    std::expected<Keystore::WordEntry, std::string> Keystore::parseWordEntry(const uint32_t wordOffset) const
     {
-        const size_t absoluteOffset = wordsOffset_ + wordOffset;
+        const size_t absOffset = wordsOffset_ + wordOffset;
 
-        if (absoluteOffset + sizeof(uint32_t) + 1 >= fileData_.size())
+        // Need at least: uint32 pagesOffset + 1 separator byte
+        if (absOffset + sizeof(uint32_t) + 1 >= fileData_.size())
             return std::unexpected("Word offset out of bounds");
 
         // Read pages offset (little-endian uint32)
         uint32_t pagesOffset;
-        std::memcpy(&pagesOffset, &fileData_[absoluteOffset], sizeof(uint32_t));
+        std::memcpy(&pagesOffset, &fileData_[absOffset], sizeof(uint32_t));
         if constexpr (std::endian::native == std::endian::big)
             pagesOffset = std::byteswap(pagesOffset);
 
-        const size_t stringStart = absoluteOffset + sizeof(uint32_t) + 1;
+        // Skip past pagesOffset (4 bytes) + separator (1 byte)
+        const size_t stringStart = absOffset + sizeof(uint32_t) + 1;
 
-        const auto* nullPos = static_cast<const uint8_t*>(std::memchr(
-            &fileData_[stringStart], 0, fileData_.size() - stringStart));
-
+        // Find null terminator
+        const auto* nullPos = static_cast<const uint8_t*>(
+            std::memchr(&fileData_[stringStart], 0, fileData_.size() - stringStart));
         if (!nullPos)
             return std::unexpected("Unterminated word string");
 
-        const size_t stringLength = nullPos - &fileData_[stringStart];
+        const auto stringLen = static_cast<size_t>(nullPos - &fileData_[stringStart]);
 
-        return KeystoreWordEntry{
-            .key = std::string_view(reinterpret_cast<const char*>(&fileData_[stringStart]), stringLength),
+        return WordEntry{
+            .key = std::string_view(reinterpret_cast<const char*>(&fileData_[stringStart]), stringLen),
             .pagesOffset = pagesOffset,
         };
     }
 
 
-    std::expected<KeystoreLookupResult, std::string> Keystore::buildLookupResult(
-        std::string_view key, const size_t pagesOffset, const size_t index) const
+    std::expected<std::vector<PageReference>, std::string> Keystore::decodePages(const size_t pagesOffset) const
     {
-        auto pageIter = getPageIterator(pagesOffset);
-        if (!pageIter)
-            return std::unexpected(pageIter.error());
+        const size_t absOffset = wordsOffset_ + pagesOffset;
 
-        KeystoreLookupResult result;
-        result.key = key;
-        result.index = index;
-        result.pageData_ = pageIter->data_;
-        result.count_ = pageIter->remaining_;
-        return result;
+        if (absOffset + 2 > fileData_.size())
+            return std::unexpected(std::format(
+                "Pages offset out of bounds: {} + 2 > {}", absOffset, fileData_.size()));
+
+        return decodePageReferences(std::span(fileData_).subspan(absOffset));
     }
 
 
-    std::expected<PageReferenceIterator, std::string> Keystore::getPageIterator(const size_t pagesOffset) const
+    // this should actually be determined by a var 'searchOption' but I don't know its origins
+    bool Keystore::needsConversion() const noexcept
     {
-        const size_t absoluteOffset = wordsOffset_ + pagesOffset;
+        return !conversionTable_.empty() && (dictId_ == "KNEJ" || dictId_ == "KNJE");
+    }
 
-        if (absoluteOffset + 2 > fileData_.size())
-            return std::unexpected(std::format(
-                "Pages offset out of bounds: {} + 2 > {}", absoluteOffset, fileData_.size()));
 
-        uint16_t count;
-        std::memcpy(&count, &fileData_[absoluteOffset], sizeof(uint16_t));
-        if constexpr (std::endian::native == std::endian::big)
-            count = std::byteswap(count);
-
-        const size_t dataStart = absoluteOffset + 2;
-        const auto pageData = std::span(fileData_).subspan(dataStart);
-
-        // Validate by decoding all entries
-        auto tempData = pageData;
-        for (uint16_t i = 0; i < count; ++i)
+    void Keystore::applyConversion(std::vector<PageReference>& refs) const noexcept
+    {
+        for (auto& [page, item] : refs)
         {
-            auto decoded = decodeKeystoreEntry(tempData);
-            if (!decoded)
-                return std::unexpected(decoded.error());
-
-            if (decoded->bytesConsumed > tempData.size())
-                return std::unexpected("Invalid page data");
-
-            tempData = tempData.subspan(decoded->bytesConsumed);
+            if (page < conversionTable_.size())
+            {
+                const auto& mapped = conversionTable_[page];
+                page = mapped.page;
+                item = mapped.item;
+            }
         }
-
-        return PageReferenceIterator(pageData, count);
     }
 
 
     std::expected<KeystoreHeader, std::string> Keystore::readHeader(platform::fs::BinaryFileReader& reader)
     {
-        auto headerResult = reader.readStructPartial<KeystoreHeader>(16);
-        if (!headerResult)
-            return std::unexpected(headerResult.error());
+        auto result = reader.readStructPartial<KeystoreHeader>(16);
+        if (!result)
+            return std::unexpected(result.error());
 
-        KeystoreHeader header = *headerResult;
+        KeystoreHeader header = *result;
 
         if (header.version != KEYSTORE_V1 && header.version != KEYSTORE_V2)
-        {
-            return std::unexpected(std::format(
-                "Invalid keystore version: 0x{:x}", header.version));
-        }
+            return std::unexpected(std::format("Invalid keystore version: 0x{:x}", header.version));
 
+        // V2 has an additional 16 bytes
         if (header.version == KEYSTORE_V2)
         {
-            const auto extraResult = reader.readStructPartial<KeystoreHeader>(16);
-            if (!extraResult)
+            const auto ext = reader.readStructPartial<KeystoreHeader>(16);
+            if (!ext)
                 return std::unexpected("Failed to read v2 header extension");
-
-            std::memcpy(&header.nextOffset, &extraResult->version, 16);
+            std::memcpy(&header.nextOffset, &ext->version, 16);
         }
 
+        // ── Validate ─────────────────────────────────────────────
         if (header.magic1 != 0)
             return std::unexpected("Invalid magic1 field");
 
-        if (header.version == KEYSTORE_V1)
-        {
-            if (header.wordsOffset >= header.idxOffset)
-                return std::unexpected("Invalid offset ordering in v1 header");
-        }
-        else
+        if (header.wordsOffset >= header.idxOffset)
+            return std::unexpected("Invalid offset ordering: wordsOffset >= idxOffset");
+
+        if (header.version == KEYSTORE_V2)
         {
             if (header.magic5 != 0 || header.magic6 != 0 || header.magic7 != 0)
                 return std::unexpected("Invalid magic fields in v2 header");
-
-            if (header.wordsOffset >= header.idxOffset)
-                return std::unexpected("Invalid offset ordering in v2 header");
 
             if (header.nextOffset != 0 && header.idxOffset >= header.nextOffset)
                 return std::unexpected("Invalid next offset in v2 header");
@@ -262,32 +288,30 @@ namespace monokakido
     }
 
 
-    std::expected<IndexHeader, std::string> Keystore::readIndexHeader(std::span<const uint8_t> data, size_t maxSize)
+    std::expected<IndexHeader, std::string> Keystore::readIndexHeader(const std::span<const uint8_t> data,
+                                                                      const size_t maxSize)
     {
         if (data.size() < sizeof(IndexHeader))
             return std::unexpected("Index header truncated");
 
         IndexHeader header{};
         std::memcpy(&header, data.data(), sizeof(IndexHeader));
-
         if constexpr (std::endian::native == std::endian::big)
             header.swapEndianness();
 
         if (header.magic != INDEX_MAGIC)
-        {
-            return std::unexpected(std::format("Invalid index magic: expected 0x04, got 0x{:x}",
-                                               header.magic));
-        }
+            return std::unexpected(std::format(
+                "Invalid index magic: expected 0x04, got 0x{:x}", header.magic));
 
-        // Validate offset ordering
-        const auto checkOrder = [maxSize](const uint32_t left, const uint32_t right) {
-            return right == 0 || left < right || right == maxSize;
+        // Validate that offsets are monotonically ordered (allowing 0 = absent)
+        auto inOrder = [maxSize](uint32_t a, uint32_t b) {
+            return b == 0 || a < b || b == maxSize;
         };
 
-        if (!checkOrder(header.indexAOffset, header.indexBOffset) ||
-            !checkOrder(header.indexBOffset, header.indexCOffset) ||
-            !checkOrder(header.indexCOffset, header.indexDOffset) ||
-            !checkOrder(header.indexDOffset, maxSize))
+        if (!inOrder(header.indexAOffset, header.indexBOffset) ||
+            !inOrder(header.indexBOffset, header.indexCOffset) ||
+            !inOrder(header.indexCOffset, header.indexDOffset) ||
+            !inOrder(header.indexDOffset, static_cast<uint32_t>(maxSize)))
         {
             return std::unexpected("Invalid index offset ordering");
         }
@@ -296,67 +320,66 @@ namespace monokakido
     }
 
 
-    std::expected<Keystore::Indices, std::string> Keystore::readIndices(std::span<const uint8_t> data,
-                                                                        const IndexHeader& header, size_t maxSize)
+    std::expected<std::vector<uint32_t>, std::string> Keystore::readSingleIndex(
+        const std::span<const uint8_t> data, const uint32_t start, const uint32_t end)
     {
-        Indices indices;
+        if (start == 0)
+            return std::vector<uint32_t>{}; // index not present
 
-        auto readIndex = [&](const uint32_t start, const uint32_t end)
-            -> std::expected<std::vector<uint32_t>, std::string> {
-            if (start == 0)
-                return std::vector<uint32_t>{}; // Index doesn't exist
+        if (end <= start)
+            return std::unexpected("Invalid index range");
 
-            const size_t actualEnd = (end == 0) ? maxSize : end;
-            const size_t length = actualEnd - start;
+        const size_t length = end - start;
 
-            if (length < sizeof(uint32_t))
-                return std::unexpected("Index too small");
+        if (length < sizeof(uint32_t))
+            return std::unexpected("Index too small");
+        if (length % sizeof(uint32_t) != 0)
+            return std::unexpected("Index size not aligned to 4 bytes");
 
-            if (length % sizeof(uint32_t) != 0)
-                return std::unexpected("Index size not multiple of 4");
+        const size_t totalEntries = length / sizeof(uint32_t);
+        std::vector<uint32_t> offsets(totalEntries);
+        std::memcpy(offsets.data(), data.data() + start, length);
 
-            const size_t count = length / sizeof(uint32_t);
-            std::vector<uint32_t> index(count);
+        if constexpr (std::endian::native == std::endian::big)
+            for (auto& v : offsets)
+                v = std::byteswap(v);
 
-            std::memcpy(index.data(),
-                        data.data() + start,
-                        length);
+        // First element is the count; it must equal totalEntries - 1
+        if (offsets[0] + 1 != totalEntries)
+            return std::unexpected(std::format(
+                "Index count mismatch: stored {} but have {} offsets",
+                offsets[0], totalEntries - 1));
 
-            if constexpr (std::endian::native == std::endian::big)
-            {
-                for (auto& val : index)
-                {
-                    val = std::byteswap(val);
-                }
-            }
+        // Remove the count, keep only the word offsets
+        offsets.erase(offsets.begin());
+        return offsets;
+    }
 
-            // first element should be count - 1
-            if (!index.empty() && index[0] + 1 != count)
-                return std::unexpected("Index count mismatch");
 
-            // Remove the count element, keep only offsets
-            if (!index.empty())
-                index.erase(index.begin());
+    std::expected<Keystore::IndexArrays, std::string> Keystore::readAllIndices(
+        std::span<const uint8_t> data,
+        const IndexHeader& header,
+        const size_t maxSize)
+    {
+        const auto sz = static_cast<uint32_t>(maxSize);
 
-            return index;
+        auto a = readSingleIndex(data, header.indexAOffset, header.indexBOffset != 0 ? header.indexBOffset : sz);
+        if (!a) return std::unexpected(std::format("Index A: {}", a.error()));
+
+        auto b = readSingleIndex(data, header.indexBOffset, header.indexCOffset != 0 ? header.indexCOffset : sz);
+        if (!b) return std::unexpected(std::format("Index B: {}", b.error()));
+
+        auto c = readSingleIndex(data, header.indexCOffset, header.indexDOffset != 0 ? header.indexDOffset : sz);
+        if (!c) return std::unexpected(std::format("Index C: {}", c.error()));
+
+        auto d = readSingleIndex(data, header.indexDOffset, sz);
+        if (!d) return std::unexpected(std::format("Index D: {}", d.error()));
+
+        return IndexArrays{
+            .length = std::move(*a),
+            .prefix = std::move(*b),
+            .suffix = std::move(*c),
+            .other = std::move(*d),
         };
-
-        auto idxA = readIndex(header.indexAOffset, header.indexBOffset);
-        if (!idxA) return std::unexpected(idxA.error());
-        indices.indexA = std::move(*idxA);
-
-        auto idxB = readIndex(header.indexBOffset, header.indexCOffset);
-        if (!idxB) return std::unexpected(idxB.error());
-        indices.indexB = std::move(*idxB);
-
-        auto idxC = readIndex(header.indexCOffset, header.indexDOffset);
-        if (!idxC) return std::unexpected(idxC.error());
-        indices.indexC = std::move(*idxC);
-
-        auto idxD = readIndex(header.indexDOffset, maxSize);
-        if (!idxD) return std::unexpected(idxD.error());
-        indices.indexD = std::move(*idxD);
-
-        return indices;
     }
 }

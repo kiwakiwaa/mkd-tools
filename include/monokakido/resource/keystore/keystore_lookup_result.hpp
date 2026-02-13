@@ -7,33 +7,22 @@
 #include "page_reference.hpp"
 
 #include <string_view>
+#include <vector>
 
 namespace monokakido
 {
-    // A single word entry from the keystore
-    struct KeystoreWordEntry
-    {
-        std::string_view key;   // The search term
-        size_t pagesOffset;     // Offset to page reference data (words-section-relative)
-    };
-
-    // Result of a keystore lookup
+    // Result of a keystore lookup, owns the decoded page references.
     struct KeystoreLookupResult
     {
-        std::string_view key;
-        size_t index;  // Position in the keystore
+        std::string_view key;                   // The search term (points into Keystore's file buffer)
+        size_t index = 0;                       // Position within the queried index
+        std::vector<PageReference> pages;       // Decoded page references
 
-        [[nodiscard]] PageReferenceIterator begin() const { return PageReferenceIterator{pageData_, count_}; }
-        [[nodiscard]] PageReferenceIterator end() const { return PageReferenceIterator{{}, 0}; }
+        [[nodiscard]] size_t size()  const noexcept { return pages.size(); }
+        [[nodiscard]] bool   empty() const noexcept { return pages.empty(); }
 
-        // Helper to get count without iterating
-        [[nodiscard]] size_t size() const noexcept { return count_; }
-
-        [[nodiscard]] bool empty() const noexcept { return count_ == 0; }
-
-    private:
-        friend class Keystore;
-        std::span<const uint8_t> pageData_;
-        uint16_t count_ = 0;
+        // Range support
+        [[nodiscard]] auto begin() const noexcept { return pages.begin(); }
+        [[nodiscard]] auto end()   const noexcept { return pages.end(); }
     };
 }

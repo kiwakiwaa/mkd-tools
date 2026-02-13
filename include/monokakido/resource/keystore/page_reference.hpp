@@ -7,23 +7,11 @@
 #include <expected>
 #include <span>
 #include <string>
+#include <vector>
 
 
 namespace monokakido
 {
-    struct DecodedEntry
-    {
-        uint32_t page;          // Page ID (HTML file)
-        uint16_t item;          // Item within page (HTML element reference)
-        uint16_t extra;         // Encoded via flags 0x40/0x80. purpose varies by dictionary;
-                                // not stored into the entry ID buffer during standard search
-
-        uint8_t  type;          // Filter byte (flag 0x08), entries with this set may be
-                                // skipped for non-type-1 searches
-        bool     hasType;
-        size_t   bytesConsumed;
-    };
-
     // Reference to a dictionary entry
     struct PageReference
     {
@@ -33,51 +21,39 @@ namespace monokakido
         auto operator<=>(const PageReference&) const = default;
     };
 
+    // Variable-length encoding
+    //
+    // Each entry is bit-packed with a leading flags byte:
+    //   0x01: page is 1 byte
+    //   0x02: page is 2 bytes (big-endian)
+    //   0x04: page is 3 bytes (big-endian)
+    //   0x08: type/filter byte present (used for search filtering, not part of the entry ID)
+    //   0x10: item is 1 byte
+    //   0x20: item is 2 bytes (big-endian)
+    //   0x40: extra is 1 byte
+    //   0x80: extra is 2 bytes (big-endian)
+    struct DecodedEntry
+    {
+        uint32_t page;
+        uint16_t item;
+        uint16_t extra;     // Encoded via flags 0x40/0x80
+        uint8_t  type;      // Filter byte (flag 0x08)
+        bool     hasType;
+        size_t   bytesConsumed;
+    };
+
     /**
-     * Decode a single page reference entry from bit-packed format
-     *
-     * Format uses first byte as flags:
-     *   0x01: page is 1 byte
-     *   0x02: page is 2 bytes (big-endian)
-     *   0x04: page is 3 bytes (big-endian)
-     *   0x08: type byte present
-     *   0x10: item is 1 byte
-     *   0x20: item is 2 bytes (big-endian)
-     *   0x40: subitem is 1 byte
-     *   0x80: subitem is 2 bytes (big-endian)
+     * Decode a single variable-length entry from raw bytes.
      */
     [[nodiscard]] std::expected<DecodedEntry, std::string> decodeKeystoreEntry(std::span<const uint8_t> data);
 
-    // Iterator over page references for a single key
-    class PageReferenceIterator
-    {
-    public:
-        using iterator_category = std::input_iterator_tag;
-        using difference_type = std::ptrdiff_t;
-        using value_type = PageReference;
-        using pointer = const value_type*;
-        using reference = value_type;
-
-        PageReferenceIterator() noexcept = default;
-
-        value_type operator*() const;
-
-        PageReferenceIterator& operator++();
-
-        PageReferenceIterator operator++(int);
-
-        bool operator==(const PageReferenceIterator& other) const noexcept;
-
-    private:
-        friend class Keystore;
-        friend struct KeystoreLookupResult;
-
-        PageReferenceIterator(const std::span<const uint8_t> data, const uint16_t count)
-            : data_(data), remaining_(count)
-        {
-        }
-
-        std::span<const uint8_t> data_;
-        uint16_t remaining_ = 0;
-    };
+    /**
+     * Decode all page references from a counted block.
+     *
+     * Block format: uint16_le count | encoded entries...
+     *
+     * @param data  Span starting at the uint16 count field
+     * @return Decoded page references, or an error
+     */
+    [[nodiscard]] std::expected<std::vector<PageReference>, std::string> decodePageReferences(std::span<const uint8_t> data);
 }
