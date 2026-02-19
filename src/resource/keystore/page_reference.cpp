@@ -4,6 +4,7 @@
 
 #include "monokakido/resource/keystore/page_reference.hpp"
 
+#include <cstring>
 #include <bit>
 #include <format>
 

@@ -1,15 +1,16 @@
-#include "monokakido/core/platform/scoped_security_access.hpp"
+#include "monokakido/platform/macos/scoped_security_access.hpp"
 
 #import <Cocoa/Cocoa.h>
 #import <Foundation/Foundation.h>
 
 #include <format>
 
-namespace monokakido::platform::fs
+namespace monokakido::macos
 {
     ScopedSecurityAccess::ScopedSecurityAccess(const std::filesystem::path& path)
     {
-        @autoreleasepool {
+        @autoreleasepool
+        {
             NSString* pathStr = [NSString stringWithUTF8String:path.c_str()];
             if (!pathStr) return;
 
@@ -20,53 +21,29 @@ namespace monokakido::platform::fs
             {
                 // Manually retain since we're not using ARC
                 url_ = (__bridge void*)[url retain];
-                valid_ = true;
             }
         }
     }
 
     ScopedSecurityAccess::~ScopedSecurityAccess()
     {
-        if (valid_ && url_) {
-            @autoreleasepool {
-                NSURL* url = (__bridge NSURL*)url_;
-                [url stopAccessingSecurityScopedResource];
-                [url release]; // Manually release
-            }
-        }
-
-        url_ = nullptr;
-        valid_ = false;
+        release();
     }
 
 
     ScopedSecurityAccess::ScopedSecurityAccess(ScopedSecurityAccess&& other) noexcept
-        : url_(other.url_), valid_(other.valid_)
+        : url_(other.url_)
     {
         other.url_ = nullptr;
-        other.valid_ = false;
     }
 
     ScopedSecurityAccess& ScopedSecurityAccess::operator=(ScopedSecurityAccess&& other) noexcept
     {
         if (this != &other)
         {
-            // Release current resource
-            if (valid_ && url_)
-            {
-                @autoreleasepool
-                {
-                    NSURL* url = (__bridge NSURL*)url_;
-                    [url stopAccessingSecurityScopedResource];
-                    [url release]; // Manually release
-                }
-            }
-
-            // Take ownership
+            release();
             url_ = other.url_;
-            valid_ = other.valid_;
             other.url_ = nullptr;
-            other.valid_ = false;
         }
         return *this;
     }
@@ -74,7 +51,22 @@ namespace monokakido::platform::fs
 
     bool ScopedSecurityAccess::isValid() const
     {
-        return valid_;
+        return url_ != nullptr;;
+    }
+
+
+    void ScopedSecurityAccess::release() noexcept
+    {
+        if (url_)
+        {
+            @autoreleasepool
+            {
+                auto url = (__bridge NSURL*)url_;
+                [url stopAccessingSecurityScopedResource];
+                [url release];
+            }
+            url_ = nullptr;
+        }
     }
 
 
@@ -112,7 +104,8 @@ namespace monokakido::platform::fs
 
     std::optional<BookmarkData> promptForDictionariesAccess()
     {
-        @autoreleasepool {
+        @autoreleasepool
+        {
             NSOpenPanel* panel = [NSOpenPanel openPanel];
             panel.message = @"Please select the Monokakido Dictionaries folder to grant access";
             panel.prompt = @"Grant Access";
@@ -124,20 +117,19 @@ namespace monokakido::platform::fs
             NSString* groupId = @"group.jp.monokakido.Dictionaries";
             NSURL* containerURL = [[NSFileManager defaultManager]
                 containerURLForSecurityApplicationGroupIdentifier:groupId];
-            if (containerURL) {
+            if (containerURL)
+            {
                 NSURL* dictPath = [containerURL URLByAppendingPathComponent:
                     @"Library/Application Support/com.dictionarystore/dictionaries"];
                 panel.directoryURL = dictPath;
             }
 
-            if ([panel runModal] != NSModalResponseOK) {
+            if ([panel runModal] != NSModalResponseOK)
                 return std::nullopt;
-            }
 
             NSURL* selectedURL = panel.URLs.firstObject;
-            if (!selectedURL) {
+            if (!selectedURL)
                 return std::nullopt;
-            }
 
             // Create security-scoped bookmark
             NSError* error = nil;
@@ -148,7 +140,8 @@ namespace monokakido::platform::fs
                 relativeToURL:nil
                 error:&error];
 
-            if (!bookmark || error) {
+            if (!bookmark || error)
+            {
                 NSLog(@"Failed to create bookmark: %@", error);
                 return std::nullopt;
             }
@@ -168,13 +161,13 @@ namespace monokakido::platform::fs
     // Simple preference storage using UserDefaults
     std::optional<std::vector<uint8_t>> loadSavedBookmark()
     {
-        @autoreleasepool {
+        @autoreleasepool
+        {
             NSData* data = [[NSUserDefaults standardUserDefaults]
                 dataForKey:@"MonokakidoDictionariesBookmark"];
 
-            if (!data) {
+            if (!data)
                 return std::nullopt;
-            }
 
             std::vector<uint8_t> result;
             result.assign(
@@ -188,7 +181,8 @@ namespace monokakido::platform::fs
 
     void saveBookmark(const std::vector<uint8_t>& bookmarkData)
     {
-        @autoreleasepool {
+        @autoreleasepool
+        {
             NSData* data = [NSData dataWithBytes:bookmarkData.data()
                                           length:bookmarkData.size()];
             [[NSUserDefaults standardUserDefaults]
@@ -199,7 +193,8 @@ namespace monokakido::platform::fs
 
     void clearSavedBookmark()
     {
-        @autoreleasepool {
+        @autoreleasepool
+        {
             [[NSUserDefaults standardUserDefaults] removeObjectForKey:@"MonokakidoDictionariesBookmark"];
         }
     }

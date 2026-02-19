@@ -2,14 +2,14 @@
 // kiwakiwaaにより 2026/01/14 に作成されました。
 //
 
-#include "monokakido/core/platform/fs.hpp"
+#include "monokakido/platform/fs.hpp"
 #include "monokakido/dictionary/metadata.hpp"
 
 namespace monokakido
 {
     std::expected<DictionaryMetadata, std::string> DictionaryMetadata::loadFromPath(const fs::path& path)
     {
-        auto contents = platform::fs::readTextFile(path);
+        auto contents = readTextFile(path);
         if (!contents)
         {
             return std::unexpected("Failed to read file: " + contents.error().message());

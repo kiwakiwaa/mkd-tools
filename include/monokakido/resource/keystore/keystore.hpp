@@ -5,7 +5,7 @@
 #pragma once
 
 #include "monokakido/resource/common.hpp"
-#include "monokakido/core/platform/fs.hpp"
+#include "monokakido/platform/fs.hpp"
 #include "page_reference.hpp"
 #include "keystore_lookup_result.hpp"
 
@@ -183,7 +183,7 @@ namespace monokakido
         void applyConversion(std::vector<PageReference>& refs) const noexcept;
 
         // File format parsing
-        static std::expected<KeystoreHeader, std::string> readHeader(platform::fs::BinaryFileReader& reader);
+        static std::expected<KeystoreHeader, std::string> readHeader(BinaryFileReader& reader);
 
         static std::expected<IndexHeader, std::string> readIndexHeader(std::span<const uint8_t> data, size_t maxSize);
 

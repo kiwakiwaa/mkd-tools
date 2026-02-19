@@ -6,6 +6,7 @@
 
 #include "monokakido/resource/common.hpp"
 
+#include <cstring>
 #include <expected>
 #include <filesystem>
 #include <format>
@@ -13,13 +14,10 @@
 #include <string>
 #include <vector>
 
-
-namespace monokakido::platform::fs
+namespace monokakido
 {
     [[nodiscard]] std::expected<std::filesystem::path, std::string> findFileWithExtension(
         const std::filesystem::path& directoryPath, std::string_view extension);
-
-    [[nodiscard]] std::filesystem::path getContainerPathByGroupIdentifier(const std::string& groupIdentifier);
 
     [[nodiscard]] std::expected<std::string, std::error_code> readTextFile(const std::filesystem::path& path);
 

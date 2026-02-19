@@ -6,6 +6,7 @@
 
 #include "metadata.hpp"
 #include "paths.hpp"
+#include "monokakido/platform/dictionary_source.hpp"
 #include "monokakido/resource/nrsc/nrsc.hpp"
 #include "monokakido/resource/rsc/rsc.hpp"
 #include "monokakido/resource/font.hpp"
@@ -24,9 +25,7 @@ namespace monokakido
     {
     public:
 
-        static std::expected<Dictionary, std::string> open(std::string_view dictId);
-
-        static std::expected<Dictionary, std::string> openAtPath(const fs::path& path);
+        static std::expected<Dictionary, std::string> open(std::string_view dictId, const DictionarySource& source);
 
         [[nodiscard]] const std::string& id() const noexcept;
         [[nodiscard]] const DictionaryMetadata& metadata() const noexcept;
@@ -53,6 +52,8 @@ namespace monokakido
 
 
     private:
+
+        static std::expected<Dictionary, std::string> openAtPath(const fs::path& path);
 
         Dictionary(
             std::string id,

@@ -9,9 +9,8 @@
 #include <optional>
 #include <vector>
 
-namespace monokakido::platform::fs
+namespace monokakido::macos
 {
-
     struct BookmarkData
     {
         std::vector<uint8_t> data;
@@ -22,6 +21,7 @@ namespace monokakido::platform::fs
     {
     public:
 
+        ScopedSecurityAccess() = default;
         explicit ScopedSecurityAccess(const std::filesystem::path& path);
         ~ScopedSecurityAccess();
 
@@ -36,8 +36,10 @@ namespace monokakido::platform::fs
         [[nodiscard]] bool isValid() const;
 
     private:
+
+        void release() noexcept;
+
         void* url_ = nullptr; // NSUrl*
-        bool valid_ = false;
 
     };
 

@@ -6,11 +6,11 @@
 #include <filesystem>
 #include <algorithm>
 
-#include "monokakido/core/platform/fs.hpp"
-#include "monokakido/dictionary/catalog.hpp"
+#include "../test_listener.hpp"
+#include "monokakido/platform/macos/fs.hpp"
+#include "monokakido/platform/macos/macos_dictionary_source.hpp"
 #include "monokakido/resource/rsc/rsc.hpp"
 #include "monokakido/resource/xml_view.hpp"
-#include "../test_listener.hpp"
 
 #include <pugixml.h>
 
@@ -21,7 +21,7 @@ class RscDataTest : public ::testing::Test
 protected:
     void SetUp() override
     {
-        const auto containerPath = platform::fs::getContainerPathByGroupIdentifier(MONOKAKIDO_GROUP_ID);
+        const auto containerPath = macos::getContainerPathByGroupIdentifier(MONOKAKIDO_GROUP_ID);
         const auto dictionariesPath = containerPath / DICTIONARIES_PATH;
 
         dictId_ = "KJT.J";

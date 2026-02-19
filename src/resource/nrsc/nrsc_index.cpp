@@ -3,8 +3,9 @@
 //
 
 #include "monokakido/resource/nrsc/nrsc_index.hpp"
-#include "monokakido/core/platform/fs.hpp"
+#include "monokakido/platform/fs.hpp"
 
+#include <algorithm>
 #include <cassert>
 #include <bit>
 #include <format>
@@ -21,11 +22,11 @@ namespace monokakido
 
     std::expected<NrscIndex, std::string> NrscIndex::load(const fs::path& directoryPath)
     {
-        auto filePathResult = platform::fs::findFileWithExtension(directoryPath, ".nidx");
+        auto filePathResult = findFileWithExtension(directoryPath, ".nidx");
         if (!filePathResult)
             return std::unexpected(filePathResult.error());
 
-        auto reader = platform::fs::BinaryFileReader::open(*filePathResult);
+        auto reader = BinaryFileReader::open(*filePathResult);
         if (!reader)
             return std::unexpected(reader.error());
 
@@ -55,14 +56,14 @@ namespace monokakido
 
     std::expected<NrscIndexRecord, std::string> NrscIndex::findById(std::string_view id) const
     {
-        const auto it = std::lower_bound(records_.begin(), records_.end(), id,
-                                         [this](const NrscIndexRecord& record, std::string_view searchId) {
-                                             const auto idResult = this->getIdAt(record.idOffset());
-                                             if (!idResult)
-                                                 return false;
-
-                                             return *idResult < searchId;
-                                         });
+        const auto it = std::ranges::lower_bound(records_, id,
+            [](std::string_view a, std::string_view b) {
+                return a < b;
+            },
+            [this](const NrscIndexRecord& record) -> std::string_view {
+                const auto result = this->getIdAt(record.idOffset());
+                return result ? *result : std::string_view{};
+            });
 
         if (it == records_.end())
             return std::unexpected(std::format("Resource not found: {}", id));

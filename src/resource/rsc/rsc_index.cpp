@@ -3,8 +3,9 @@
 //
 
 #include "monokakido/resource/rsc/rsc_index.hpp"
-#include "monokakido/core/platform/fs.hpp"
+#include "monokakido/platform/fs.hpp"
 
+#include <algorithm>
 #include <bit>
 #include <cassert>
 #include <format>
@@ -74,11 +75,11 @@ namespace monokakido
         }
 
         // Fall back to binary search
-        const auto it = std::lower_bound(
-            idxRecords.begin(),
-            idxRecords.end(),
+        const auto it = std::ranges::lower_bound(
+            idxRecords,
             itemId,
-            [](const IdxRecord& record, const uint32_t id) { return record.id() < id; }
+            std::less{},
+            [](const IdxRecord& record) { return record.id(); }
         );
 
         if (it == idxRecords.end() || it->id() != itemId)
@@ -245,11 +246,11 @@ namespace monokakido
 
     std::expected<std::pair<std::vector<MapRecord>, uint32_t>, std::string> RscIndex::loadMapFile(const fs::path& directoryPath)
     {
-        auto filePathResult = platform::fs::findFileWithExtension(directoryPath, ".map");
+        auto filePathResult = findFileWithExtension(directoryPath, ".map");
         if (!filePathResult)
             return std::unexpected(filePathResult.error());
 
-        auto reader = platform::fs::BinaryFileReader::open(*filePathResult);
+        auto reader = BinaryFileReader::open(*filePathResult);
         if (!reader)
             return std::unexpected(reader.error());
 
@@ -268,11 +269,11 @@ namespace monokakido
     std::expected<std::optional<std::vector<IdxRecord>>, std::string> RscIndex::loadIdxFile(const fs::path& directoryPath)
     {
         // index file is optional so no error is returned if it simply isn't found
-        auto filePathResult = platform::fs::findFileWithExtension(directoryPath, ".idx");
+        auto filePathResult = findFileWithExtension(directoryPath, ".idx");
         if (!filePathResult)
             return std::nullopt;
 
-        auto reader = platform::fs::BinaryFileReader::open(*filePathResult);
+        auto reader = BinaryFileReader::open(*filePathResult);
         if (!reader)
             return std::unexpected(reader.error());
 

@@ -5,10 +5,10 @@
 #include <gtest/gtest.h>
 #include <filesystem>
 
-#include "monokakido/core/platform/fs.hpp"
-#include "monokakido/dictionary/catalog.hpp"
-#include "monokakido/resource/nrsc/nrsc_index.hpp"
 #include "../test_listener.hpp"
+#include "monokakido/platform/macos/fs.hpp"
+#include "monokakido/platform/macos/macos_dictionary_source.hpp"
+#include "monokakido/resource/nrsc/nrsc_index.hpp"
 
 using namespace monokakido;
 
@@ -17,7 +17,7 @@ class NrscIndexTest : public ::testing::Test
 protected:
     void SetUp() override
     {
-        const auto containerPath = platform::fs::getContainerPathByGroupIdentifier(MONOKAKIDO_GROUP_ID);
+        const auto containerPath = macos::getContainerPathByGroupIdentifier(MONOKAKIDO_GROUP_ID);
         const auto dictionariesPath = containerPath / DICTIONARIES_PATH;
 
         testDataPath_ = dictionariesPath / "KJT" / "Contents" / "KJT" / "img";

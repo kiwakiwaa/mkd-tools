@@ -3,7 +3,7 @@
 //
 
 #include "monokakido/resource/headline/headline_store.hpp"
-#include "monokakido/core/platform/fs.hpp"
+#include "monokakido/platform/fs.hpp"
 
 #include <utf8.h>
 
@@ -70,7 +70,7 @@ namespace monokakido
 
     std::expected<HeadlineStore, std::string> HeadlineStore::load(const fs::path& filePath)
     {
-        auto reader = platform::fs::BinaryFileReader::open(filePath);
+        auto reader = BinaryFileReader::open(filePath);
         if (!reader)
             return std::unexpected(std::format("Failed to open headline store '{}'", filePath.string()));
 

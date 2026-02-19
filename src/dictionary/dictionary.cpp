@@ -4,18 +4,15 @@
 
 
 #include "monokakido/dictionary/dictionary.hpp"
-#include "monokakido/dictionary/catalog.hpp"
 #include "monokakido/resource/resource_loader.hpp"
 
 #include <utility>
 
 namespace monokakido
 {
-    std::expected<Dictionary, std::string> Dictionary::open(std::string_view dictId)
+    std::expected<Dictionary, std::string> Dictionary::open(std::string_view dictId, const DictionarySource& source)
     {
-        const auto& catalog = DictionaryCatalog::instance();
-
-        const auto dictInfo = catalog.findById(dictId);
+        const auto dictInfo = source.findById(dictId);
         if (!dictInfo)
             return std::unexpected(std::format("Dictionary '{}' not found", dictId));
 

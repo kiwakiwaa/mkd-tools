@@ -7,7 +7,7 @@
 #include "monokakido/resource/rsc/rsc_index.hpp"
 #include "monokakido/resource/rsc/rsc_crypto.hpp"
 #include "monokakido/resource/zlib_decompressor.hpp"
-#include "monokakido/core/platform/fs.hpp"
+#include "monokakido/platform/fs.hpp"
 
 #include <array>
 #include <filesystem>
@@ -147,7 +147,7 @@ namespace monokakido
          * @param reader Binary file reader for reading the chunk
          * @return Decoded data, or error string if failure
          */
-        std::expected<std::vector<uint8_t>, std::string> readAndProcessChunk(platform::fs::BinaryFileReader& reader) const;
+        std::expected<std::vector<uint8_t>, std::string> readAndProcessChunk(BinaryFileReader& reader) const;
 
         /**
          * Helper function to read and decrypt chunk data from the new format
@@ -156,7 +156,7 @@ namespace monokakido
          * @param reader Binary file reader for reading the chunk
          * @return Decrypted data, or error string if failure
          */
-        std::expected<std::vector<uint8_t>, std::string> readAndDecryptData(platform::fs::BinaryFileReader& reader) const;
+        std::expected<std::vector<uint8_t>, std::string> readAndDecryptData(BinaryFileReader& reader) const;
 
         /**
          * Reads data directly at global offset. Typically used for fonts

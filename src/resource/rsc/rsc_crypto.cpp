@@ -12,15 +12,17 @@
     #include <openssl/sha.h>
 #endif
 
+#include <cstring>
+
 namespace monokakido
 {
     namespace
     {
         constexpr std::array<uint8_t, 31> kSubstitutionTable = {
-            0x2b, 0xdf, 0x33, 0xee, 0x93, 0xe8, 0x68, 0x22,
-            0x95, 0xd1, 0xde, 0xca, 0x95, 0xfa, 0x4f, 0xfb,
-            0xa0, 0xb1, 0x8b, 0x4d, 0x18, 0x82, 0xb2, 0x40,
-            0xab, 0x0f, 0x50, 0xd8, 0x21, 0x30, 0x23
+            0x2B, 0xDF, 0x33, 0xEE, 0x93, 0xE8, 0x68, 0x22,
+            0x95, 0xD1, 0xDE, 0xCA, 0x95, 0xFA, 0x4F, 0xFB,
+            0xA0, 0xB1, 0x8B, 0x4D, 0x18, 0x82, 0xB2, 0x40,
+            0xAB, 0x0F, 0x50, 0xD8, 0x21, 0x30, 0x23
         };
 
         // XOR constant for checksum
@@ -95,7 +97,6 @@ namespace monokakido
     std::expected<std::vector<uint8_t>, std::string> RscCrypto::decrypt(
         const std::span<const uint8_t> encryptedData, const std::array<uint8_t, 32>& key)
     {
-        // Validate input
         if (encryptedData.size() < 4)
             return std::unexpected("Encrypted data too short (minimum 4 bytes)");
 
@@ -107,17 +108,16 @@ namespace monokakido
         // XOR checksum with constant to get actual output length
         const uint32_t outputLength = checksum ^ kChecksumXor;
 
-        // validate output length
         if (outputLength > dataLength || outputLength > 100'000'000)
             return std::unexpected("Invalid output length derived from checksum");
 
         std::vector<uint8_t> output(dataLength);
 
-        // Permute data using DATA2 lookup table
+        // Permute data using kData2 lookup table
         if (dataLength > 0)
             permuteData(encryptedData.first(dataLength), output, checksum);
 
-        // XOR with key and DATA1
+        // XOR with key and kData1
         if (dataLength > 0)
             applyXorCipher(output, key, checksum);
 

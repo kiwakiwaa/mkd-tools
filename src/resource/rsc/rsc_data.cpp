@@ -107,7 +107,7 @@ namespace monokakido
 
         auto& [file, localOffset] = *fileAndOffset;
 
-        auto readerResult = platform::fs::BinaryFileReader::open(file.filePath);
+        auto readerResult = BinaryFileReader::open(file.filePath);
         if (!readerResult)
             return std::unexpected(readerResult.error());
         auto& reader = *readerResult;
@@ -127,8 +127,7 @@ namespace monokakido
     }
 
 
-    std::expected<std::vector<uint8_t>, std::string> RscData::readAndProcessChunk(
-        platform::fs::BinaryFileReader& reader) const
+    std::expected<std::vector<uint8_t>, std::string> RscData::readAndProcessChunk(BinaryFileReader& reader) const
     {
         // Read format marker (first 4 bytes)
         auto versionResult = reader.read<uint32_t>();
@@ -163,8 +162,7 @@ namespace monokakido
     }
 
 
-    std::expected<std::vector<uint8_t>, std::string> RscData::readAndDecryptData(
-        platform::fs::BinaryFileReader& reader) const
+    std::expected<std::vector<uint8_t>, std::string> RscData::readAndDecryptData(BinaryFileReader& reader) const
     {
         if (!decryptionKey_)
             return std::unexpected("Encrypted data requires decryption key");
@@ -189,7 +187,7 @@ namespace monokakido
 
         auto& [file, localOffset] = *fileAndOffset;
 
-        auto readerResult = platform::fs::BinaryFileReader::open(file.filePath);
+        auto readerResult = BinaryFileReader::open(file.filePath);
         if (!readerResult)
             return std::unexpected(readerResult.error());
         auto& reader = *readerResult;

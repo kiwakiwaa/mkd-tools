@@ -4,6 +4,8 @@
 
 #include "monokakido/dictionary/paths.hpp"
 
+#include <format>
+
 using namespace std::literals::string_view_literals;
 
 namespace monokakido
@@ -17,8 +19,8 @@ namespace monokakido
         {
             for (const auto& name : candidateNames)
             {
-                if (const fs::path path = contentDir / name; fs::exists(path / "index.nidx"))
-                    return path;
+                if (fs::path path = contentDir / name; fs::exists(path / "index.nidx"))
+                    return std::move(path);
             }
             return std::nullopt;
         }

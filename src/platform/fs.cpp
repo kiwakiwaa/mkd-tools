@@ -1,11 +1,9 @@
-#include "monokakido/core/platform/fs.hpp"
-
-#import <Foundation/Foundation.h>
+#include "monokakido/platform/fs.hpp"
 
 #include <fstream>
 #include <sstream>
 
-namespace monokakido::platform::fs {
+namespace monokakido {
 
 
     std::expected<BinaryFileReader, std::string> BinaryFileReader::open(const std::filesystem::path& filePath)
@@ -101,18 +99,6 @@ namespace monokakido::platform::fs {
         return std::unexpected(std::format("No {} file found in: {}", extension, directoryPath.string()));
     }
 
-
-    std::filesystem::path getContainerPathByGroupIdentifier(const std::string& groupIdentifier)
-    {
-        @autoreleasepool {
-              NSString* groupId = [NSString stringWithUTF8String:groupIdentifier.c_str()];
-              NSURL* containerURL = [[NSFileManager defaultManager] containerURLForSecurityApplicationGroupIdentifier:groupId];
-              if (!containerURL)
-                  return {};
-
-              return std::filesystem::path{containerURL.path.UTF8String};
-        }
-    }
 
     std::expected<std::string, std::error_code> readTextFile(const std::filesystem::path& path)
     {

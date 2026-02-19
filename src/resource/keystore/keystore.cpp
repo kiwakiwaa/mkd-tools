@@ -61,7 +61,7 @@ namespace monokakido
     std::expected<Keystore, std::string>
     Keystore::load(const fs::path& path, const std::string& dictId)
     {
-        auto readerResult = platform::fs::BinaryFileReader::open(path);
+        auto readerResult = BinaryFileReader::open(path);
         if (!readerResult)
             return std::unexpected(readerResult.error());
         auto& reader = *readerResult;
@@ -256,7 +256,7 @@ namespace monokakido
     }
 
 
-    std::expected<KeystoreHeader, std::string> Keystore::readHeader(platform::fs::BinaryFileReader& reader)
+    std::expected<KeystoreHeader, std::string> Keystore::readHeader(BinaryFileReader& reader)
     {
         auto result = reader.readStructPartial<KeystoreHeader>(16);
         if (!result)

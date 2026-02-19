@@ -1,11 +1,10 @@
-cmake_minimum_required(VERSION 4.0)
+cmake_minimum_required(VERSION 3.26)
 project(monokakido_extractor)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_MACOSX_BUNDLE TRUE)
 
-option(BUILD_TESTING "Build the testing tree" ON)
+option(BUILD_TESTING "Build the testing tree" OFF)
 include(CTest)
 
 include(FetchContent)
@@ -27,37 +26,53 @@ FetchContent_Declare(
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
-find_package(ZLIB REQUIRED)
+# Zlib
+FetchContent_Declare(
+        zlib
+        GIT_REPOSITORY https://github.com/madler/zlib.git
+        GIT_TAG v1.3.1
+        GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(zlib)
 
+if (NOT TARGET ZLIB::ZLIB)
+    add_library(ZLIB::ZLIB ALIAS zlibstatic)
+endif ()
+
+include_directories(${zlib_BINARY_DIR})
+include_directories(${zlib_SOURCE_DIR})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 include_directories(${glaze_SOURCE_DIR}/include)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/utfcpp)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/pugixml)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/third_party/indicators)
 
-
-# Core library
-add_library(monokakido_core STATIC
-        src/core/platform/fs.mm
-        src/core/platform/scoped_security_access.mm
+# --- Platform library ---
+add_library(monokakido_platform STATIC
+        src/platform/fs.cpp
+        src/platform/directory_dictionary_source.cpp
 )
 
-target_link_libraries(monokakido_core PRIVATE
-        "-framework Foundation"
-        "-framework Security"
-        "-framework CoreServices"
-        "-framework Cocoa"
-)
-
+if (APPLE)
+    target_sources(monokakido_platform PRIVATE
+            src/platform/macos/fs.mm
+            src/platform/macos/macos_dictionary_source.cpp
+            src/platform/macos/scoped_security_access.mm
+    )
+    target_link_libraries(monokakido_platform PRIVATE
+            "-framework Foundation"
+            "-framework Security"
+            "-framework CoreServices"
+            "-framework Cocoa"
+    )
+endif ()
 
 # --- Dictionary library ---
 add_library(monokakido_dictionary STATIC
-        src/dictionary/catalog.cpp
         src/dictionary/metadata.cpp
         src/dictionary/paths.cpp
         src/dictionary/dictionary.cpp
 )
-
 
 # --- Output library ---
 add_library(monokakido_output STATIC
@@ -68,41 +83,47 @@ add_library(monokakido_output STATIC
         src/output/headline_exporter.cpp
 )
 
-
 # --- Resource library ---
 add_library(monokakido_resource STATIC
         src/resource/nrsc/nrsc.cpp
         src/resource/nrsc/nrsc_index.cpp
         src/resource/nrsc/nrsc_index_record.cpp
         src/resource/nrsc/nrsc_data.cpp
-        src/resource/zlib_decompressor.cpp
-        src/resource/resource_loader.cpp
-        src/resource/rsc/rsc_index.cpp
-        src/resource/rsc/rsc_data.cpp
-        src/resource/common.cpp
-        src/resource/rsc/rsc_index_record.cpp
-        src/resource/rsc/rsc_map.cpp
-        src/resource/xml_view.cpp
-        src/resource/rsc/rsc_crypto.cpp
         src/resource/rsc/rsc.cpp
-        src/resource/font.cpp
+        src/resource/rsc/rsc_crypto.cpp
+        src/resource/rsc/rsc_index.cpp
+        src/resource/rsc/rsc_index_record.cpp
+        src/resource/rsc/rsc_data.cpp
+        src/resource/rsc/rsc_map.cpp
         src/resource/keystore/keystore.cpp
         src/resource/keystore/page_reference.cpp
         src/resource/headlines/headline_store.cpp
+        src/resource/font.cpp
+        src/resource/zlib_decompressor.cpp
+        src/resource/resource_loader.cpp
+        src/resource/common.cpp
+        src/resource/xml_view.cpp
 )
 
 target_link_libraries(monokakido_resource PRIVATE
-        monokakido_core
+        monokakido_platform
 )
 
+if (APPLE)
+    # CommonCrypto is part of the system
+elseif (WIN32)
+    target_link_libraries(monokakido_resource PRIVATE bcrypt)
+else ()
+    find_package(OpenSSL REQUIRED)
+    target_link_libraries(monokakido_resource PRIVATE OpenSSL::Crypto)
+endif ()
 
-# --- Executable as macOS bundle ---
-add_executable(monokakido_extractor MACOSX_BUNDLE
-        src/main.cpp
-)
+
+# --- Executable ---
+add_executable(monokakido_extractor src/main.cpp)
 
 target_link_libraries(monokakido_extractor PRIVATE
-        monokakido_core
+        monokakido_platform
         monokakido_dictionary
         monokakido_resource
         monokakido_output
@@ -110,27 +131,27 @@ target_link_libraries(monokakido_extractor PRIVATE
         ZLIB::ZLIB
 )
 
-set_target_properties(monokakido_extractor PROPERTIES
-        MACOSX_BUNDLE_BUNDLE_NAME "Monokakido Extractor"
-        MACOSX_BUNDLE_GUI_IDENTIFIER "com.kiwaa.monokakido-extractor"
-        MACOSX_BUNDLE_BUNDLE_VERSION "1.0.0"
-        MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0"
-        MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/Info.plist.in"
-)
-
+if (APPLE)
+    set_target_properties(monokakido_extractor PROPERTIES
+            MACOSX_BUNDLE TRUE
+            MACOSX_BUNDLE_BUNDLE_NAME "Monokakido Extractor"
+            MACOSX_BUNDLE_GUI_IDENTIFIER "com.kiwaa.monokakido-extractor"
+            MACOSX_BUNDLE_BUNDLE_VERSION "1.0.0"
+            MACOSX_BUNDLE_SHORT_VERSION_STRING "1.0"
+            MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/Info.plist.in"
+    )
+endif ()
 
 if (BUILD_TESTING)
     enable_testing()
     set(TEST_SOURCES
             test/test_listener.hpp
-
             test/nrsc/test_nrsc_index.cpp
             test/rsc/test_rsc_data.cpp
             test/rsc/test_rsc_index.cpp
             test/main.cpp
             test/keystore/test_keystore.cpp
             test/headline/headline_test.cpp
-            test/headline/headline_index_test.cpp
     )
 
     add_executable(monokakido_extractor_tests
@@ -138,7 +159,7 @@ if (BUILD_TESTING)
     )
 
     target_link_libraries(monokakido_extractor_tests PRIVATE
-            monokakido_core
+            monokakido_platform
             monokakido_resource
             monokakido_output
             GTest::gtest
