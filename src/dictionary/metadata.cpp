@@ -9,75 +9,14 @@ namespace MKD
 {
     std::expected<DictionaryMetadata, std::string> DictionaryMetadata::loadFromPath(const fs::path& path)
     {
-        auto contents = readTextFile(path);
-        if (!contents)
-        {
-            return std::unexpected("Failed to read file: " + contents.error().message());
-        }
+        auto fileContent = readTextFile(path);
+        if (!fileContent)
+            return std::unexpected("Failed to read file: " + fileContent.error().message());
 
-        if (auto parsed = glz::lazy_json(contents.value()); !parsed)
-        {
-            return std::unexpected(
-                "Failed to parse JSON: " + std::string(glz::format_error(parsed.error(), contents.value()))
-            );
-        }
+        DictionaryMetadata metadata{};
+        if (const auto err = glz::read<glz::opts{.error_on_unknown_keys = false}>(metadata, fileContent.value()))
+            return std::unexpected("Failed to parse JSON: " + std::string(glz::format_error(err, fileContent.value())));
 
-        return DictionaryMetadata{std::move(contents.value())};
-    }
-
-
-    std::optional<std::string> DictionaryMetadata::displayName() const
-    {
-        const auto name = json_["DSProductDisplayName"]["ja"].get<std::string>();
-        if (!name)
-            return std::nullopt;
-
-        return name.value();
-    }
-
-
-    std::optional<std::string> DictionaryMetadata::description() const
-    {
-        const auto name = json_["DSProductDescription"]["ja"].get<std::string>();
-        if (!name)
-            return std::nullopt;
-
-        return name.value();
-    }
-
-
-    std::optional<std::string> DictionaryMetadata::publisher() const
-    {
-        const auto name = json_["DSProductContents"][0]["DSContentPublisher"]["ja"].get<std::string>();
-        if (!name)
-            return std::nullopt;
-
-        return name.value();
-    }
-
-
-    std::optional<std::string> DictionaryMetadata::contentIdentifier() const
-    {
-        const auto name = json_["DSProductContents"][0]["DSContentIdentifier"].get<std::string>();
-        if (!name)
-            return std::nullopt;
-
-        return name.value();
-    }
-
-
-    std::optional<fs::path> DictionaryMetadata::contentDirectoryName() const
-    {
-        const auto name = json_["DSProductContents"][0]["DSContentDirectory"].get<std::string>();
-        if (!name)
-            return std::nullopt;
-
-        return fs::path{name.value()};
-    }
-
-
-    DictionaryMetadata::DictionaryMetadata (std::string jsonContent)
-        : jsonContent_(std::move(jsonContent)), json_(glz::lazy_json(jsonContent_).value())
-    {
+        return metadata;
     }
 }

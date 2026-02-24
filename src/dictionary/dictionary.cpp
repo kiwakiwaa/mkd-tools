@@ -10,66 +10,33 @@
 
 namespace MKD
 {
-    std::expected<Dictionary, std::string> Dictionary::open(std::string_view dictId, const DictionarySource& source)
+    Dictionary::Dictionary(DictionaryContent content,
+                           std::optional<Rsc> entries,
+                           std::optional<Nrsc> graphics,
+                           std::optional<std::variant<Rsc, Nrsc> > audio,
+                           std::vector<Font> fonts,
+                           std::vector<Keystore> keystores,
+                           std::vector<HeadlineStore> headlines)
+        : content_(std::move(content)),
+          entries_(std::move(entries)),
+          graphics_(std::move(graphics)),
+          audio_(std::move(audio)),
+          fonts_(std::move(fonts)),
+          keystores_(std::move(keystores)),
+          headlines_(std::move(headlines))
     {
-        const auto dictInfo = source.findById(dictId);
-        if (!dictInfo)
-            return std::unexpected(std::format("Dictionary '{}' not found", dictId));
-
-        return openAtPath(dictInfo->path);
-    }
-
-
-    std::expected<Dictionary, std::string> Dictionary::openAtPath(const fs::path& path)
-    {
-        auto metadata = DictionaryMetadata::loadFromPath(
-            path / "Contents" / (path.stem().string() + ".json")
-        );
-        if (!metadata)
-            return std::unexpected(std::format("Failed to load dictionary metadata: '{}'", metadata.error()));
-
-        auto dictIdResult = metadata->contentIdentifier();
-        if (!dictIdResult)
-            return std::unexpected(std::format("Failed to load content identifier for '{}'", path.stem().string()));
-
-        auto& dictId = dictIdResult.value();
-
-        auto paths = DictionaryPaths::create(path, metadata.value());
-        if (!paths)
-            return std::unexpected(std::format("Failed to load paths: '{}'", paths.error()));
-
-        ResourceLoader loader(*paths);
-
-        auto entries = loader.loadEntries(dictId);
-        auto audio = loader.loadAudio(dictId);
-        auto graphics = loader.loadGraphics(dictId);
-        auto fonts = loader.loadFonts();
-        auto keystores = loader.loadKeystores(dictId);
-        auto headlines = loader.loadHeadlines();
-
-        return Dictionary(
-            std::string(dictId),
-            std::move(metadata.value()),
-            std::move(paths.value()),
-            std::move(entries),
-            std::move(graphics),
-            std::move(audio),
-            std::move(fonts),
-            std::move(keystores),
-            std::move(headlines)
-        );
     }
 
 
     const std::string& Dictionary::id() const noexcept
     {
-        return id_;
+        return content_.identifier;
     }
 
 
-    const DictionaryMetadata& Dictionary::metadata() const noexcept
+    const DictionaryContent& Dictionary::content() const noexcept
     {
-        return metadata_;
+        return content_;
     }
 
 
@@ -127,25 +94,6 @@ namespace MKD
         std::unreachable();
     }
 
-    Dictionary::Dictionary(std::string id,
-                           DictionaryMetadata metadata,
-                           DictionaryPaths paths,
-                           std::optional<Rsc> entries,
-                           std::optional<Nrsc> graphics,
-                           std::optional<std::variant<Rsc, Nrsc>> audio,
-                           std::vector<Font> fonts,
-                           std::vector<Keystore> keystores,
-                           std::vector<HeadlineStore> headlines)
-        : id_(std::move(id)), paths_(std::move(paths)), metadata_(std::move(metadata)),
-          entries_(std::move(entries)),
-          graphics_(std::move(graphics)),
-          audio_(std::move(audio)),
-          fonts_(std::move(fonts)),
-          keystores_(std::move(keystores)),
-          headlines_(std::move(headlines))
-    {
-    }
-
 
     ExportResult Dictionary::exportWithOptions(const ExportOptions& options) const
     {
@@ -153,7 +101,7 @@ namespace MKD
 
         const auto shouldExport = [&](const ResourceType type) {
             return options.resources.empty()
-                || std::ranges::find(options.resources, type) != options.resources.end();
+                   || std::ranges::find(options.resources, type) != options.resources.end();
         };
 
         const auto notify = [&](const ExportEvent& event) {
@@ -191,18 +139,22 @@ namespace MKD
                 ExportResult failed;
                 failed.failed = 1;
                 failed.errors.push_back(std::format("Failed to export {}: {}",
-                    resourceTypeName(type), result.error()));
+                                                    resourceTypeName(type), result.error()));
                 notify(PhaseEndEvent{type, failed});
                 combinedResult += failed;
             }
         };
 
-        runPhase(ResourceType::Audio,      [&] { return exportAudio(options); });
-        runPhase(ResourceType::Entries,    [&] { return ResourceExporter::exportAll(*entries_, options, ResourceType::Entries); });
-        runPhase(ResourceType::Fonts,      [&] { return exportFonts(options); });
-        runPhase(ResourceType::Graphics,   [&] { return ResourceExporter::exportAll(*graphics_, options, ResourceType::Graphics); });
-        runPhase(ResourceType::Headlines,  [&] { return exportHeadlines(options); });
-        runPhase(ResourceType::Keystores,  [&] { return exportKeystores(options); });
+        runPhase(ResourceType::Audio, [&] { return exportAudio(options); });
+        runPhase(ResourceType::Entries, [&] {
+            return ResourceExporter::exportAll(*entries_, options, ResourceType::Entries);
+        });
+        runPhase(ResourceType::Fonts, [&] { return exportFonts(options); });
+        runPhase(ResourceType::Graphics, [&] {
+            return ResourceExporter::exportAll(*graphics_, options, ResourceType::Graphics);
+        });
+        runPhase(ResourceType::Headlines, [&] { return exportHeadlines(options); });
+        runPhase(ResourceType::Keystores, [&] { return exportKeystores(options); });
 
         return combinedResult;
     }

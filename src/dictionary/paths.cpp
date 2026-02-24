@@ -4,13 +4,11 @@
 
 #include "MKD/dictionary/paths.hpp"
 
-#include <format>
 
 using namespace std::literals::string_view_literals;
 
 namespace MKD
 {
-
     namespace detail
     {
         std::optional<fs::path> findResourcePath(
@@ -26,59 +24,50 @@ namespace MKD
         }
     }
 
-    std::expected<DictionaryPaths, std::string> DictionaryPaths::create(const fs::path& rootPath,
-                                                                        const DictionaryMetadata& metadata)
-    {
-        const auto contentDirectoryName = metadata.contentDirectoryName();
-        if (!contentDirectoryName)
-            return std::unexpected(std::format("Failed to get content directory for '{}'", rootPath.stem().string()));
 
-        return DictionaryPaths(rootPath, std::move(rootPath / "Contents" / contentDirectoryName.value()));
+    std::expected<DictionaryPaths, std::string> DictionaryPaths::create(const fs::path& productRoot)
+    {
+        auto contentsRoot = productRoot / "Contents";
+        if (!fs::is_directory(contentsRoot))
+            return std::unexpected("Missing Contents directory: " + contentsRoot.string());
+
+        return DictionaryPaths(std::move(productRoot), std::move(contentsRoot));
     }
 
 
-    DictionaryPaths::DictionaryPaths(fs::path rootPath, fs::path contentDirectory)
-        : rootPath_(std::move(rootPath)), contentDirectory_(std::move(contentDirectory))
+    DictionaryPaths::DictionaryPaths(fs::path productRoot, fs::path contentsRoot)
+        : productRoot_(std::move(productRoot))
+          , contentsRoot_(std::move(contentsRoot))
     {
     }
 
-    fs::path DictionaryPaths::resolve(const ResourceType type) const
+
+    std::optional<fs::path> DictionaryPaths::tryResolve(
+        const ResourceType type, std::string_view contentDir) const
     {
+        const auto base = contentsRoot_ / contentDir;
+
         switch (type)
         {
-            case ResourceType::Audio: return contentDirectory_ / "audio";
-            case ResourceType::Entries: return contentDirectory_ / "contents";
+            case ResourceType::Entries: return existingDir(base / "contents");
+            case ResourceType::Audio: return existingDir(base / "audio");
             case ResourceType::Graphics:
             {
                 static constexpr std::array candidates = {"graphics"sv, "img"sv};
-                if (auto path = detail::findResourcePath(contentDirectory_, candidates))
+                if (auto path = detail::findResourcePath(base, candidates))
                     return *path;
-                return contentDirectory_ / "graphics";
+                return std::nullopt;
             }
-            case ResourceType::Fonts: return contentDirectory_ / "fonts";
-            case ResourceType::Headlines: return contentDirectory_ / "headline";
-            case ResourceType::Keystores: return contentDirectory_ / "key";
-            default: return rootPath_;
+            case ResourceType::Keystores: return existingDir(base / "key");
+            case ResourceType::Headlines: return existingDir(base / "headline");
+            case ResourceType::Fonts: return existingDir(base / "fonts");
         }
+        std::unreachable();
     }
 
 
-    std::optional<fs::path> DictionaryPaths::tryResolve(const ResourceType type) const
+    std::optional<fs::path> DictionaryPaths::existingDir(const fs::path& path)
     {
-        auto path = resolve(type);
-        return fs::exists(path) ? std::make_optional(path) : std::nullopt;
+        return fs::is_directory(path) ? std::optional(path) : std::nullopt;
     }
-
-
-    std::expected<fs::path, std::string> DictionaryPaths::validate(const ResourceType type) const
-    {
-        auto path = resolve(type);
-        if (!fs::exists(path))
-        {
-            return std::unexpected(std::format("Path '{}' does not exist", path.string()));
-        }
-        return path;
-    }
-
-
 }

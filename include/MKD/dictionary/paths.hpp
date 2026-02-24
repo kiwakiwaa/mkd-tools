@@ -20,19 +20,20 @@ namespace MKD
     {
     public:
 
-        static std::expected<DictionaryPaths, std::string> create(const fs::path& rootPath, const DictionaryMetadata& metadata);
+        static std::expected<DictionaryPaths, std::string> create(const fs::path& productRoot);
 
-        [[nodiscard]] fs::path resolve(ResourceType type) const;
-        [[nodiscard]] std::optional<fs::path> tryResolve(ResourceType type) const;
-        [[nodiscard]] std::expected<fs::path, std::string> validate(ResourceType type) const;
+        [[nodiscard]] std::optional<fs::path> tryResolve(ResourceType type, std::string_view contentDir) const;
+
+        [[nodiscard]] const fs::path& productRoot() const noexcept { return productRoot_; }
 
     private:
 
-        DictionaryPaths(fs::path rootPath, fs::path contentDirectory);
+        DictionaryPaths(fs::path productRoot, fs::path contentsRoot);
 
-        fs::path rootPath_;
-        fs::path contentDirectory_;
+        static std::optional<fs::path> existingDir(const fs::path& path);
 
+        fs::path productRoot_;
+        fs::path contentsRoot_;
     };
 
 }

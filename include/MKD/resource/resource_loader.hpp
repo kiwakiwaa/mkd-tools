@@ -29,24 +29,24 @@ namespace MKD
 
         explicit ResourceLoader(const DictionaryPaths& paths);
 
-        [[nodiscard]] std::optional<Rsc> loadEntries(std::string_view dictId) const;
-        [[nodiscard]] std::optional<Nrsc> loadGraphics(std::string_view dictId) const;
-        [[nodiscard]] std::optional<std::variant<Rsc, Nrsc>> loadAudio(std::string_view dictId) const;
-        [[nodiscard]] std::vector<Keystore> loadKeystores(std::string_view dictId) const;
-        [[nodiscard]] std::vector<HeadlineStore> loadHeadlines() const;
-        [[nodiscard]] std::vector<Font> loadFonts() const;
+        [[nodiscard]] std::optional<Rsc> loadEntries(std::string_view contentDir, std::string_view dictId) const;
+        [[nodiscard]] std::optional<Nrsc> loadGraphics(std::string_view contentDir, std::string_view dictId) const;
+        [[nodiscard]] std::optional<std::variant<Rsc, Nrsc>> loadAudio(std::string_view contentDir, std::string_view dictId) const;
+        [[nodiscard]] std::vector<Keystore> loadKeystores(std::string_view contentDir, std::string_view dictId) const;
+        [[nodiscard]] std::vector<HeadlineStore> loadHeadlines(std::string_view contentDir) const;
+        [[nodiscard]] std::vector<Font> loadFonts(std::string_view contentDir) const;
 
     private:
 
         const DictionaryPaths& paths_;
 
         template<Openable T>
-        std::optional<T> tryLoad(ResourceType pathType, std::string_view dictId) const;
+        std::optional<T> tryLoad(ResourceType pathType, std::string_view contentDir, std::string_view dictId) const;
 
         template<typename T, typename Predicate, typename Loader>
-        std::vector<T> loadCollection(ResourceType type, Predicate pred, Loader loader) const;
+        std::vector<T> loadCollection(ResourceType type, std::string_view contentDir, Predicate pred, Loader loader) const;
 
-        [[nodiscard]] std::optional<std::variant<Rsc, Nrsc>> tryLoadEither(ResourceType pathType, std::string_view dictId) const;
+        [[nodiscard]] std::optional<std::variant<Rsc, Nrsc>> tryLoadEither(ResourceType pathType, std::string_view contentDir, std::string_view dictId) const;
 
         static bool hasResourceFiles(const fs::path& path);
     };
