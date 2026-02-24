@@ -26,70 +26,39 @@ namespace MKD
     }
 
 
-    std::optional<std::variant<Rsc, Nrsc>> ResourceLoader::loadAudio(std::string_view dictId) const
+    std::optional<std::variant<Rsc, Nrsc> > ResourceLoader::loadAudio(std::string_view dictId) const
     {
         return tryLoadEither(ResourceType::Audio, dictId);
     }
 
 
-    std::vector<Font> ResourceLoader::loadFonts() const
-    {
-        const auto fontsPath = paths_.tryResolve(ResourceType::Fonts);
-        if (!fontsPath)
-            return {};
-
-        // Iterate through subdirectories in the fonts folder
-        std::vector<Font> fonts;
-        for (const auto& entry : fs::directory_iterator(*fontsPath))
-        {
-            if (!entry.is_directory())
-                continue;
-
-            if (auto font = tryLoadResource<Rsc>(entry.path(), entry.path().filename().string()))
-                fonts.emplace_back(entry.path().filename().string(), std::move(*font));
-        }
-
-        return fonts;
-    }
-
-
     std::vector<Keystore> ResourceLoader::loadKeystores(std::string_view dictId) const
     {
-        const auto path = paths_.tryResolve(ResourceType::Keystores);
-        if (!path)
-            return {};
-
-        std::vector<Keystore> stores;
-        for (const auto& entry : fs::directory_iterator(*path))
-        {
-            if (entry.path().extension() != ".keystore")
-                continue;
-
-            if (auto result = Keystore::load(entry.path(), std::string(dictId)))
-                stores.push_back(std::move(*result));
-        }
-
-        return stores;
+        return loadCollection<Keystore>(
+            ResourceType::Keystores,
+            [](const auto& e) { return e.path().extension() == ".keystore"; },
+            [&](const auto& e) { return Keystore::load(e.path(), std::string(dictId)); }
+        );
     }
 
 
     std::vector<HeadlineStore> ResourceLoader::loadHeadlines() const
     {
-        const auto path = paths_.tryResolve(ResourceType::Headlines);
-        if (!path)
-            return {};
+        return loadCollection<HeadlineStore>(
+            ResourceType::Headlines,
+            [](const auto& e) { return e.path().extension() == ".headlinestore"; },
+            [&](const auto& e) { return HeadlineStore::load(e.path()); }
+        );
+    }
 
-        std::vector<HeadlineStore> stores;
-        for (const auto& entry : fs::directory_iterator(*path))
-        {
-            if (entry.path().extension() != ".headlinestore")
-                continue;
 
-            if (auto result = HeadlineStore::load(entry.path()))
-                stores.push_back(std::move(*result));
-        }
-
-        return stores;
+    std::vector<Font> ResourceLoader::loadFonts() const
+    {
+        return loadCollection<Font>(
+            ResourceType::Fonts,
+            [](const auto& e) { return e.is_directory(); },
+            [](const auto& e) { return Font::load(e.path()); }
+        );
     }
 
 
@@ -97,43 +66,50 @@ namespace MKD
     std::optional<T> ResourceLoader::tryLoad(const ResourceType pathType, std::string_view dictId) const
     {
         const auto path = paths_.tryResolve(pathType);
-        return path ? tryLoadResource<T>(*path, dictId) : std::nullopt;
-    }
-
-
-    std::optional<std::variant<Rsc, Nrsc> > ResourceLoader::tryLoadEither(const ResourceType pathType, std::string_view dictId) const
-    {
-        const auto path = paths_.tryResolve(pathType);
         if (!path)
             return std::nullopt;
 
-        if (auto nrsc = tryLoadResource<Nrsc>(*path, dictId))
+
+        if (!hasResourceFiles(*path))
+            return std::nullopt;
+
+        auto result = [&]() {
+            if constexpr (requires { T::open(*path, std::string(dictId)); })
+                return T::open(*path, std::string(dictId));
+            else
+                return T::open(*path);
+        }();
+
+        return result ? std::optional<T>(std::move(*result)) : std::nullopt;
+    }
+
+
+    std::optional<std::variant<Rsc, Nrsc>> ResourceLoader::tryLoadEither(const ResourceType pathType, std::string_view dictId) const
+    {
+        if (auto nrsc = tryLoad<Nrsc>(pathType, dictId))
             return std::variant<Rsc, Nrsc>(std::move(*nrsc));
 
-        if (auto rsc = tryLoadResource<Rsc>(*path, dictId))
+        if (auto rsc = tryLoad<Rsc>(pathType, dictId))
             return std::variant<Rsc, Nrsc>(std::move(*rsc));
 
         return std::nullopt;
     }
 
 
-    template<Openable T>
-    std::optional<T> ResourceLoader::tryLoadResource(const fs::path& path, std::string_view dictId) const
+    template<typename T, typename Predicate, typename Loader>
+    std::vector<T> ResourceLoader::loadCollection(const ResourceType type, Predicate pred, Loader loader) const
     {
-        if (!hasResourceFiles(path))
-            return std::nullopt;
+        const auto path = paths_.tryResolve(type);
+        if (!path) return {};
 
-        auto result = [&]() {
-            if constexpr (std::is_same_v<T, Rsc>)
-                return T::open(path, dictId);
-            else
-                return T::open(path);
-        }();
-
-        if (!result)
-            return std::nullopt;
-
-        return std::move(*result);
+        std::vector<T> results;
+        for (const auto& entry : fs::directory_iterator(*path))
+        {
+            if (!pred(entry)) continue;
+            if (auto result = loader(entry))
+                results.push_back(std::move(*result));
+        }
+        return results;
     }
 
 

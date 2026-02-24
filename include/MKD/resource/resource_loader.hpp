@@ -32,9 +32,9 @@ namespace MKD
         [[nodiscard]] std::optional<Rsc> loadEntries(std::string_view dictId) const;
         [[nodiscard]] std::optional<Nrsc> loadGraphics(std::string_view dictId) const;
         [[nodiscard]] std::optional<std::variant<Rsc, Nrsc>> loadAudio(std::string_view dictId) const;
-        [[nodiscard]] std::vector<Font> loadFonts() const;
         [[nodiscard]] std::vector<Keystore> loadKeystores(std::string_view dictId) const;
         [[nodiscard]] std::vector<HeadlineStore> loadHeadlines() const;
+        [[nodiscard]] std::vector<Font> loadFonts() const;
 
     private:
 
@@ -43,14 +43,11 @@ namespace MKD
         template<Openable T>
         std::optional<T> tryLoad(ResourceType pathType, std::string_view dictId) const;
 
+        template<typename T, typename Predicate, typename Loader>
+        std::vector<T> loadCollection(ResourceType type, Predicate pred, Loader loader) const;
+
         [[nodiscard]] std::optional<std::variant<Rsc, Nrsc>> tryLoadEither(ResourceType pathType, std::string_view dictId) const;
 
-        template<Openable T>
-        std::optional<T> tryLoadResource(const fs::path& path, std::string_view dictId) const;
-
-        static bool hasResourceFiles(const fs::path& path) ;
+        static bool hasResourceFiles(const fs::path& path);
     };
-
-
-
 }

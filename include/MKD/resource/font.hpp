@@ -4,23 +4,21 @@
 
 #pragma once
 
-#include "MKD/resource/rsc/rsc.hpp"
-
+#include <expected>
+#include <filesystem>
+#include <optional>
 #include <string>
+#include <span>
 #include <vector>
+
+namespace fs = std::filesystem;
 
 namespace MKD
 {
     class Font
     {
     public:
-        Font(std::string name, Rsc data);
-
-        Font(const Font&) = delete;
-        Font& operator=(const Font&) = delete;
-
-        Font(Font&&) noexcept = default;
-        Font& operator=(Font&&) noexcept = default;
+        static std::expected<Font, std::string> load(const fs::path& directoryPath);
 
         [[nodiscard]] const std::string& name() const noexcept;
 
@@ -31,10 +29,9 @@ namespace MKD
         [[nodiscard]] bool isEmpty() const noexcept;
 
     private:
-        [[nodiscard]] std::expected<std::span<const uint8_t>, std::string> loadFontData() const;
+        explicit Font(std::string name, std::vector<uint8_t> data);
 
         std::string name_;
-        Rsc rsc_;
-        mutable std::vector<uint8_t> buffer_;
+        std::vector<uint8_t> data_;
     };
 }

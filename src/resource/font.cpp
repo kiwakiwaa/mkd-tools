@@ -3,13 +3,34 @@
 //
 
 #include "MKD/resource/font.hpp"
-
+#include "MKD/resource/rsc/rsc.hpp"
 
 namespace MKD
 {
-    Font::Font(std::string name, Rsc data)
-        : name_(std::move(name)), rsc_(std::move(data))
+    std::expected<Font, std::string> Font::load(const fs::path& directoryPath)
     {
+        const auto fontName = directoryPath.stem().string();
+
+        auto rscResult = Rsc::open(directoryPath);
+        if (!rscResult)
+            return std::unexpected(std::format("Failed to load font '{}': {}", fontName, rscResult.error()));
+
+        const auto& rsc = rscResult.value();
+
+        size_t totalSize = 0;
+        for (auto&& [itemId, data] : rsc)
+        {
+            totalSize += data.size();
+        }
+
+        std::vector<uint8_t> fontData;
+        fontData.reserve(totalSize);
+        for (const auto& [itemId, data] : rsc)
+        {
+            fontData.append_range(data);
+        }
+
+        return Font(fontName, fontData);
     }
 
 
@@ -21,22 +42,19 @@ namespace MKD
 
     std::expected<std::span<const uint8_t>, std::string> Font::getData() const
     {
-        if (!buffer_.empty())
-            return std::span<const uint8_t>(buffer_);
-
-        return loadFontData();
+        return std::span(data_);
     }
 
 
     std::optional<std::string> Font::detectType() const
     {
-        if (buffer_.empty() || buffer_.size() < 8)
+        if (data_.empty() || data_.size() < 8)
             return std::nullopt;
 
-        const uint32_t magic = (buffer_[0] << 24 |
-                                buffer_[1] << 16 |
-                                buffer_[2] << 8 |
-                                buffer_[3]);
+        const uint32_t magic = (data_[0] << 24 |
+                                data_[1] << 16 |
+                                data_[2] << 8 |
+                                data_[3]);
 
         if (magic == 0x4F54544F) // "OTTO"
             return "otf"; // OpenType
@@ -47,22 +65,12 @@ namespace MKD
 
     bool Font::isEmpty() const noexcept
     {
-        return rsc_.empty();
+        return data_.empty();
     }
 
 
-    std::expected<std::span<const uint8_t>, std::string> Font::loadFontData() const
+    Font::Font(std::string name, std::vector<uint8_t> data)
+        : name_(std::move(name)), data_(std::move(data))
     {
-        buffer_.clear();
-
-        for (const auto& [itemId, data] : rsc_)
-        {
-            buffer_.insert(buffer_.end(), data.begin(), data.end());
-        }
-
-        if (buffer_.empty())
-            return std::unexpected("Font data is empty: {}");
-
-        return std::span<const uint8_t>(buffer_);
     }
 }
