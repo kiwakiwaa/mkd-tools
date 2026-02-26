@@ -4,52 +4,39 @@
 
 #include "MKD/output/base_exporter.hpp"
 
+#include <sys/fcntl.h>
+#include <unistd.h>
+
 #include <format>
 #include <fstream>
+
 
 namespace MKD
 {
     std::expected<void, std::string> BaseExporter::writeData(const std::span<const uint8_t> data, const fs::path& path)
     {
-        // Write to temp file first
-        const fs::path tempPath = path.string() + ".tmp";
+        const int fd = ::open(path.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        if (fd < 0)
+            return std::unexpected(std::format("open failed: {}", strerror(errno)));
 
-        try
+        const uint8_t* ptr = data.data();
+        size_t remaining = data.size();
+
+        while (remaining > 0)
         {
-            if (const auto parent = path.parent_path(); !parent.empty())
+            const ssize_t written = ::write(fd, ptr, remaining);
+            if (written < 0)
             {
-                std::error_code ec;
-                fs::create_directories(parent, ec);
-                if (ec)
-                    return std::unexpected(
-                        std::format("Failed to create directory: {}", ec.message()));
+                const int err = errno;
+                ::close(fd);
+                return std::unexpected(std::format("write failed: {}", strerror(err)));
             }
-
-            std::ofstream file(tempPath, std::ios::binary);
-            if (!file) return std::unexpected("Failed to open file for writing");
-
-            file.write(reinterpret_cast<const char*>(data.data()), data.size());
-            if (!file) return std::unexpected("Failed to write data");
-
-            file.close();
-
-            // Atomic rename
-            std::error_code ec;
-            fs::rename(tempPath, path, ec);
-            if (ec)
-            {
-                fs::remove(tempPath, ec);
-                return std::unexpected(std::format("Failed to finalise file: {}", ec.message()));
-            }
-
-            return {};
+            ptr += written;
+            remaining -= written;
         }
-        catch (const std::exception& e)
-        {
-            std::error_code ec;
-            fs::remove(tempPath, ec);
-            return std::unexpected(e.what());
-        }
+
+        ::close(fd);
+        return {};
     }
 
 

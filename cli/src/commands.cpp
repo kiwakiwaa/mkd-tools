@@ -187,6 +187,11 @@ namespace MKDCLI
             std::cerr << Colour::bold("Exporting content: ") << dict.id() << "\n";
 
             auto options = exportOpts;
+
+            // separate folders only when the product has multiple contents
+            if (dicts.size() > 1)
+                options.outputDirectory /= dict.id();
+
             ExportProgress progress;
             options.progressCallback = [&progress](const MKD::ExportEvent& event) {
                 progress.onEvent(event);

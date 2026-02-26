@@ -22,7 +22,7 @@ namespace MKD
      */
     struct MapHeader : BinaryStruct<MapHeader>
     {
-        uint32_t version; // Format version identifier
+        uint32_t version; // Format version identifier. 0x01 means the contents have encryption applied
         uint32_t recordCount; // Number of MapRecords in file
 
         void swapEndianness() noexcept;

@@ -4,8 +4,29 @@ project(mkd-tools LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-option(MKD_BUILD_TESTS "Build tests" ON)
+if(POLICY CMP0069)
+    cmake_policy(SET CMP0069 NEW)
+endif()
+
+option(MKD_BUILD_TESTS "Build tests" OFF)
 option(MKD_BUILD_CLI "Build command-line interface" ON)
+
+if(CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
+    include(CheckIPOSupported)
+    check_ipo_supported(RESULT ipo_supported)
+    if(ipo_supported)
+        set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+    endif()
+
+    add_compile_options(-march=native -O3)
+
+    if(APPLE)
+        add_link_options(-Wl,-dead_strip)
+    elseif(UNIX)
+        add_compile_options(-ffunction-sections -fdata-sections)
+        add_link_options(-s -Wl,--gc-sections -Wl,--exclude-libs,ALL)
+    endif()
+endif()
 
 include(FetchContent)
 
@@ -24,12 +45,11 @@ FetchContent_Declare(zlib
 FetchContent_MakeAvailable(glaze zlib)
 
 if (NOT TARGET ZLIB::ZLIB)
-    add_library(ZLIB::ZLIB ALIAS zlibstatic)
-    # Expose zlib headers
-    target_include_directories(zlibstatic INTERFACE
-            ${zlib_SOURCE_DIR}
-            ${zlib_BINARY_DIR}
-    )
+    if(TARGET zlibstatic)
+        add_library(ZLIB::ZLIB ALIAS zlibstatic)
+    else()
+        message(FATAL_ERROR "zlibstatic target not found")
+    endif()
 endif()
 
 file(GLOB_RECURSE MKD_SOURCES src/*.cpp)
@@ -80,6 +100,8 @@ endif()
 
 # Tests
 if (MKD_BUILD_TESTS)
+    set(CMAKE_POLICY_DEFAULT_CMP0000 OLD)
+    set(CMAKE_POLICY_DEFAULT_CMP0069 NEW)
     FetchContent_Declare(googletest
             URL https://github.com/google/googletest/archive/03597a01ee50ed33e9dfd640b249b4be3799d395.zip
     )

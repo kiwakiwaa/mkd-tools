@@ -26,12 +26,6 @@ namespace MKD
 
     private:
 
-        static std::tuple<std::string, std::string, std::span<const uint8_t>> prepareRscItem(
-            uint32_t itemId,
-            std::span<const uint8_t> data,
-            const ExportOptions& options,
-            std::vector<uint8_t>& buffer);
-
-        static bool isAudioData(std::span<const uint8_t> data);
+        static std::vector<uint8_t> prettyPrintXml(std::span<const uint8_t> data);
     };
 }

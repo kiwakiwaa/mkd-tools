@@ -3,7 +3,10 @@
 //
 
 #include "MKD/output/resource_exporter.hpp"
+#include "MKD/output/export_accumulator.hpp"
+#include "MKD/platform/parallel.hpp"
 
+#include <mutex>
 #include <pugixml.h>
 #include <sstream>
 
@@ -11,124 +14,108 @@ namespace MKD
 {
     namespace
     {
-        const auto notify = [](const ExportEvent& event, const ExportCallback& callback) {
-            if (callback)
-                callback(event);
-        };
-
-        /*
-         *  Determines a reporting interval
-         */
-        constexpr size_t updateInterval(const size_t totalItems)
+        std::error_code createOutputDirs(const ExportOptions& options, const ResourceType type)
         {
-            return std::max<size_t>(1, totalItems / 400);
+            std::error_code ec;
+            fs::create_directories(options.outputDirectory / resourceTypeName(type), ec);
+            return ec;
         }
 
-        bool shouldReport(const size_t completed, const size_t total, const size_t interval)
+        fs::path buildOutputPath(const ExportOptions& options, const ResourceType type, std::string_view filename)
         {
-            return completed == total || completed % interval == 0;
+            if (options.createSubdirectories)
+                return options.outputDirectory / resourceTypeName(type) / filename;
+            return options.outputDirectory / filename;
         }
     }
+
 
     std::expected<ExportResult, std::string> ResourceExporter::exportAll(
         const Rsc& rsc, const ExportOptions& options, const ResourceType type)
     {
-        ExportResult result;
-        result.totalResources = rsc.size();
+        if (rsc.empty())
+            return ExportResult{};
 
-        if (result.totalResources == 0)
-            return result;
+        if (const auto ec = createOutputDirs(options, type))
+            return std::unexpected(std::format("Failed to create output directories: {}", ec.message()));
 
-        const size_t interval = updateInterval(result.totalResources);
-        std::vector<uint8_t> buffer;
+        const auto ext = type == ResourceType::Entries ? ".xml" : ".aac";
+        ExportAccumulator acc(rsc.size(), type, options.progressCallback);
+        std::mutex readMutex;
 
-        for (const auto& [itemId, data] : rsc)
-        {
-            auto [subdir, filename, finalData] = prepareRscItem(itemId, data, options, buffer);
-            fs::path outputDir = options.createSubdirectories
-                                     ? options.outputDirectory / subdir
-                                     : options.outputDirectory;
-
-            if (const fs::path outputPath = outputDir / filename;
-                shouldSkipExisting(outputPath, options.overwriteExisting))
+        parallel_for(rsc.size(), [&](const size_t i) {
+            uint32_t itemId;
+            std::vector<uint8_t> owned;
             {
-                result.skipped++;
+                std::lock_guard lock(readMutex);
+                auto item = rsc.getByIndex(i);
+                if (!item)
+                {
+                    acc.recordFailure(std::format("Index {}: {}", i, item.error()));
+                    return;
+                }
+                itemId = item->itemId;
+                owned.assign(item->data.begin(), item->data.end());
             }
-            else if (auto writeResult = writeData(finalData, outputPath))
+
+            if (options.prettyPrintXml && type == ResourceType::Entries)
             {
-                result.exported++;
-                result.totalBytes += finalData.size();
+                if (auto pretty = prettyPrintXml(owned); !pretty.empty())
+                    owned = std::move(pretty);
             }
+
+            const auto filename = std::format("{:06}.{}", itemId, ext);
+            if (const auto outputPath = buildOutputPath(options, type, filename); shouldSkipExisting(outputPath, options.overwriteExisting))
+                acc.recordSkip();
+            else if (auto result = writeData(owned, outputPath))
+                acc.recordExport(owned.size());
             else
-            {
-                result.failed++;
-                result.errors.push_back(std::format("Entry {}: {}", itemId, writeResult.error()));
-            }
+                acc.recordFailure(std::format("Entry {}: {}", itemId, result.error()));
+        });
 
-            if (const size_t completed = result.exported + result.skipped + result.failed;
-                shouldReport(completed, result.totalResources, interval))
-            {
-                notify(ProgressEvent{
-                           .type = type,
-                           .completedItems = completed,
-                           .totalItems = result.totalResources,
-                           .bytesWritten = result.totalBytes
-                       }, options.progressCallback);
-            }
-        }
-
-        return result;
+        return acc.finalize();
     }
 
 
     std::expected<ExportResult, std::string> ResourceExporter::exportAll(
         const Nrsc& nrsc, const ExportOptions& options, const ResourceType type)
     {
-        ExportResult result;
-        result.totalResources = nrsc.size();
+        if (nrsc.empty())
+            return ExportResult{};
 
-        if (result.totalResources == 0)
-            return result;
+        if (const auto ec = createOutputDirs(options, type))
+            return std::unexpected(std::format("Failed to create output directories: {}", ec.message()));
 
-        const size_t interval = updateInterval(result.totalResources);
+        ExportAccumulator acc(nrsc.size(), type, options.progressCallback);
+        std::mutex readMutex;
 
-        for (const auto& [id, data] : nrsc)
-        {
-            const bool isAudio = id.find('.') == std::string_view::npos;
-
-            fs::path outputDir = options.outputDirectory;
-            if (options.createSubdirectories)
-                outputDir /= isAudio ? "audio" : "graphics";
-
-            if (const fs::path outputPath = outputDir / (isAudio ? std::format("{}.aac", id) : std::string(id));
-                shouldSkipExisting(outputPath, options.overwriteExisting))
+        parallel_for(nrsc.size(), [&](const size_t i) {
+            std::string id;
+            std::vector<uint8_t> owned;
             {
-                result.skipped++;
+                std::lock_guard lock(readMutex);
+                auto item = nrsc.getByIndex(i);
+                if (!item)
+                {
+                    acc.recordFailure(std::format("Index {}: {}", i, item.error()));
+                    return;
+                }
+                id = std::string(item->id);
+                owned.assign(item->data.begin(), item->data.end());
             }
-            else if (auto writeResult = writeData(data, outputPath))
-            {
-                result.exported++;
-                result.totalBytes += data.size();
-            }
+
+            // nrsc items with no extension in their ID are audio files
+            const bool isAudio = id.find('.') == std::string::npos;
+            auto filename = isAudio ? std::format("{}.aac", id) : id;
+            if (auto outputPath = buildOutputPath(options, type, filename); shouldSkipExisting(outputPath, options.overwriteExisting))
+                acc.recordSkip();
+            else if (auto result = writeData(owned, outputPath))
+                acc.recordExport(owned.size());
             else
-            {
-                result.failed++;
-                result.errors.push_back(std::format("{}: {}", id, writeResult.error()));
-            }
+                acc.recordFailure(std::format("{}: {}", id, result.error()));
+        });
 
-            if (const size_t completed = result.exported + result.skipped + result.failed;
-                shouldReport(completed, result.totalResources, interval))
-            {
-                notify(ProgressEvent{
-                           .type = type,
-                           .completedItems = completed,
-                           .totalItems = result.totalResources,
-                           .bytesWritten = result.totalBytes
-                       }, options.progressCallback);
-            }
-        }
-
-        return result;
+        return acc.finalize();
     }
 
 
@@ -137,6 +124,9 @@ namespace MKD
     {
         ExportResult result;
         result.totalResources = 1;
+
+        if (const auto ec = createOutputDirs(options, ResourceType::Fonts))
+            return std::unexpected(std::format("Failed to create output directories: {}", ec.message()));
 
         auto fontDataResult = font.getData();
         if (!fontDataResult)
@@ -153,12 +143,8 @@ namespace MKD
         if (!extension)
             return std::unexpected("Unrecognized font type");
 
-        const fs::path outputDir = options.createSubdirectories
-                                       ? options.outputDirectory / "fonts"
-                                       : options.outputDirectory;
-
-        if (const fs::path outputPath = outputDir / std::format("{}.{}", font.name(), extension.value());
-            shouldSkipExisting(outputPath, options.overwriteExisting))
+        auto filename = std::format("{}.{}", font.name(), *extension);
+        if (auto outputPath = buildOutputPath(options, ResourceType::Fonts, filename); shouldSkipExisting(outputPath, options.overwriteExisting))
         {
             result.skipped = 1;
         }
@@ -178,41 +164,15 @@ namespace MKD
     }
 
 
-    std::tuple<std::string, std::string, std::span<const uint8_t> > ResourceExporter::prepareRscItem(
-        uint32_t itemId, std::span<const uint8_t> data, const ExportOptions& options, std::vector<uint8_t>& buffer)
+    std::vector<uint8_t> ResourceExporter::prettyPrintXml(const std::span<const uint8_t> data)
     {
-        buffer.clear();
+        pugi::xml_document doc;
+        if (!doc.load_buffer(data.data(), data.size()))
+            return {};
 
-        // Check if it's audio data
-        if (isAudioData(data))
-            return {"audio", std::format("{:010}.aac", itemId), data};
-
-        // It's XML
-        if (options.prettyPrintXml)
-        {
-            if (pugi::xml_document doc; doc.load_buffer(data.data(), data.size()))
-            {
-                std::ostringstream oss;
-                doc.save(oss, "  ", pugi::format_default, pugi::encoding_utf8);
-                std::string prettyXml = oss.str();
-                buffer.assign(prettyXml.begin(), prettyXml.end());
-                return {"entries", std::format("{:010}.xml", itemId), buffer};
-            }
-        }
-
-        return {"entries", std::format("{:010}.xml", itemId), data};
-    }
-
-
-    bool ResourceExporter::isAudioData(const std::span<const uint8_t> data)
-    {
-        if (data.size() < 8)
-            return false;
-
-        // ADTS header (FF F1 or FF F9)
-        if (data[0] == 0xFF && (data[1] == 0xF1 || data[1] == 0xF9))
-            return true;
-
-        return false;
+        std::ostringstream oss;
+        doc.save(oss, "  ", pugi::format_default, pugi::encoding_utf8);
+        std::string str = oss.str();
+        return {str.begin(), str.end()};
     }
 }
