@@ -59,6 +59,9 @@ namespace MKD
         if (magic == 0x4F54544F) // "OTTO"
             return "otf"; // OpenType
 
+        if (magic == 0x00010000 || magic == 0x74727565) // TrueType or true
+            return "ttf";
+
         return std::nullopt;
     }
 
