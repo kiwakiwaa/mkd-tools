@@ -33,6 +33,7 @@ namespace MKD
 
     struct DictionaryMetadata
     {
+    public:
         static std::expected<DictionaryMetadata, std::string> loadFromPath(const fs::path& path);
 
         std::optional<LocalizedString> displayName;
@@ -43,6 +44,10 @@ namespace MKD
         std::optional<std::string> category;
         std::optional<std::string> version;
         std::vector<DictionaryContent> contents;
+
+    private:
+        static std::expected<std::string, std::error_code> readTextFile(const fs::path& path);
+
     };
 }
 

@@ -3,7 +3,7 @@
 //
 
 #include "MKD/resource/headline/headline_store.hpp"
-#include "MKD/platform/fs.hpp"
+#include "MKD/platform/binary_file_reader.hpp"
 
 #include <utf8.h>
 

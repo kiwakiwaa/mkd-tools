@@ -153,8 +153,7 @@ namespace MKDCLI
                     return std::unexpected(val.error());
                 else if (val->has_value())
                 {
-                    auto mode = val->value();
-                    if (mode == "forward") opts.keystoreMode = MKD::KeystoreExportMode::Forward;
+                    if (auto mode = val->value(); mode == "forward") opts.keystoreMode = MKD::KeystoreExportMode::Forward;
                     else if (mode == "inverse") opts.keystoreMode = MKD::KeystoreExportMode::Inverse;
                     else if (mode == "both") opts.keystoreMode = MKD::KeystoreExportMode::Both;
                     else return std::unexpected("Unknown keystore mode: " + std::string(mode));
@@ -220,7 +219,7 @@ namespace MKDCLI
         if (!source->checkAccess())
         {
             std::cerr << Colour::yellow("Requesting access to macOS dictionaries folder...\n");
-            if (!source->requestAccess())
+            if (!source->requestAccess(true))
                 return std::unexpected("Permission denied. Use --dir <path> to specify a directory manually.");
 
             std::cerr << Colour::green("Access granted.\n");

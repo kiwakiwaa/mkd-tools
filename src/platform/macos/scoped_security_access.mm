@@ -1,3 +1,7 @@
+//
+// kiwakiwaaにより 2026/01/15 に作成されました。
+//
+
 #include "MKD/platform/macos/scoped_security_access.hpp"
 
 #import <Cocoa/Cocoa.h>
@@ -7,7 +11,7 @@
 
 namespace MKD::macOS
 {
-    ScopedSecurityAccess::ScopedSecurityAccess(const std::filesystem::path& path)
+    ScopedSecurityAccess::ScopedSecurityAccess(const fs::path& path)
     {
         @autoreleasepool
         {
@@ -18,17 +22,12 @@ namespace MKD::macOS
             if (!url) return;
 
             if ([url startAccessingSecurityScopedResource])
-            {
-                // Manually retain since we're not using ARC
-                url_ = (__bridge void*)[url retain];
-            }
+                url_ = (__bridge void*)[url retain]; // Manually retain since we're not using ARC
         }
     }
 
-    ScopedSecurityAccess::~ScopedSecurityAccess()
-    {
-        release();
-    }
+
+    ScopedSecurityAccess::~ScopedSecurityAccess() { release(); }
 
 
     ScopedSecurityAccess::ScopedSecurityAccess(ScopedSecurityAccess&& other) noexcept
@@ -36,6 +35,7 @@ namespace MKD::macOS
     {
         other.url_ = nullptr;
     }
+
 
     ScopedSecurityAccess& ScopedSecurityAccess::operator=(ScopedSecurityAccess&& other) noexcept
     {
@@ -49,10 +49,7 @@ namespace MKD::macOS
     }
 
 
-    bool ScopedSecurityAccess::isValid() const
-    {
-        return url_ != nullptr;;
-    }
+    bool ScopedSecurityAccess::isValid() const { return url_ != nullptr; }
 
 
     void ScopedSecurityAccess::release() noexcept
@@ -91,7 +88,7 @@ namespace MKD::macOS
             if (isStale)
                 return std::unexpected("Bookmark is stale, please re-grant access");
 
-            auto path = std::filesystem::path{url.path.UTF8String};
+            auto path = fs::path{url.path.UTF8String};
             auto access = ScopedSecurityAccess(path);
 
             if (!access.isValid())
@@ -102,108 +99,28 @@ namespace MKD::macOS
     }
 
 
-    std::optional<BookmarkData> promptForDictionariesAccess()
+    std::optional<BookmarkData> createSecurityScopedBookmark(const fs::path& path)
     {
         @autoreleasepool
         {
-            // when run from a CLI process, the panel opens but the process needs a proper NSApplication activation, so that macOS brings it to the front.
-            // TODO: this should only be done for the cli
-            // TODO: move this logic somewhere else
-            [NSApplication sharedApplication];
+            NSString* pathStr = [NSString stringWithUTF8String:path.c_str()];
+            NSURL* url = [NSURL fileURLWithPath:pathStr];
+            if (!url) return std::nullopt;
 
-            [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
-            [NSApp activateIgnoringOtherApps:YES];
-
-            NSOpenPanel* panel = [NSOpenPanel openPanel];
-            panel.message = @"Please select the Monokakido Dictionaries folder to grant access";
-            panel.prompt = @"Grant Access";
-            panel.canChooseFiles = NO;
-            panel.canChooseDirectories = YES;
-            panel.allowsMultipleSelection = NO;
-
-            // try to navigate to expected location TODO: remove this unecessary part
-            NSString* groupId = @"group.jp.monokakido.Dictionaries";
-            NSURL* containerURL = [[NSFileManager defaultManager]
-                containerURLForSecurityApplicationGroupIdentifier:groupId];
-            if (containerURL)
-            {
-                NSURL* dictPath = [containerURL URLByAppendingPathComponent:
-                    @"Library/Application Support/com.dictionarystore/dictionaries"];
-                panel.directoryURL = dictPath;
-            }
-
-            if ([panel runModal] != NSModalResponseOK)
-                return std::nullopt;
-
-            NSURL* selectedURL = panel.URLs.firstObject;
-            if (!selectedURL)
-                return std::nullopt;
-
-            // Create security-scoped bookmark
             NSError* error = nil;
-            NSData* bookmark = [selectedURL bookmarkDataWithOptions:
-                NSURLBookmarkCreationWithSecurityScope |
-                NSURLBookmarkCreationSecurityScopeAllowOnlyReadAccess
-                includingResourceValuesForKeys:nil
-                relativeToURL:nil
-                error:&error];
+            NSData* bookmark = [url bookmarkDataWithOptions:
+                                    NSURLBookmarkCreationWithSecurityScope |
+                                    NSURLBookmarkCreationSecurityScopeAllowOnlyReadAccess
+                                    includingResourceValuesForKeys:nil
+                                    relativeToURL:nil
+                                    error:&error];
 
-            if (!bookmark || error)
-            {
-                NSLog(@"Failed to create bookmark: %@", error);
-                return std::nullopt;
-            }
+            if (!bookmark || error) return std::nullopt;
 
             BookmarkData result;
-            result.data.assign(
-                static_cast<const uint8_t*>(bookmark.bytes),
-                static_cast<const uint8_t*>(bookmark.bytes) + bookmark.length
-            );
-            result.resolvedPath = std::filesystem::path{selectedURL.path.UTF8String};
-
+            result.data.assign(static_cast<const uint8_t*>(bookmark.bytes), static_cast<const uint8_t*>(bookmark.bytes) + bookmark.length);
+            result.resolvedPath = path;
             return result;
-        }
-    }
-
-
-    // Simple preference storage using UserDefaults
-    std::optional<std::vector<uint8_t>> loadSavedBookmark()
-    {
-        @autoreleasepool
-        {
-            NSData* data = [[NSUserDefaults standardUserDefaults]
-                dataForKey:@"MKDBookmark"];
-
-            if (!data)
-                return std::nullopt;
-
-            std::vector<uint8_t> result;
-            result.assign(
-                static_cast<const uint8_t*>(data.bytes),
-                static_cast<const uint8_t*>(data.bytes) + data.length
-            );
-            return result;
-        }
-    }
-
-
-    void saveBookmark(const std::vector<uint8_t>& bookmarkData)
-    {
-        @autoreleasepool
-        {
-            NSData* data = [NSData dataWithBytes:bookmarkData.data()
-                                          length:bookmarkData.size()];
-            [[NSUserDefaults standardUserDefaults]
-                setObject:data forKey:@"MKDBookmark"];
-        }
-    }
-
-
-    void clearSavedBookmark()
-    {
-        @autoreleasepool
-        {
-            [[NSUserDefaults standardUserDefaults] removeObjectForKey:@"MKDBookmark"];
         }
     }
 }

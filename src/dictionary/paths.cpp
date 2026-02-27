@@ -25,7 +25,7 @@ namespace MKD
     }
 
 
-    std::expected<DictionaryPaths, std::string> DictionaryPaths::create(const fs::path& productRoot)
+    std::expected<DictionaryPaths, std::string> DictionaryPaths::create(fs::path productRoot)
     {
         auto contentsRoot = productRoot / "Contents";
         if (!fs::is_directory(contentsRoot))

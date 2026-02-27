@@ -16,4 +16,15 @@ namespace MKD::macOS
               return std::filesystem::path{containerURL.path.UTF8String};
         }
     }
+
+    std::optional<std::filesystem::path> getMonokakidoDictionariesPath(const std::string& groupIdentifier, const std::string& relativePath)
+    {
+        auto container = getContainerPathByGroupIdentifier(groupIdentifier);
+        if (container.empty()) return std::nullopt;
+
+        auto path = container / relativePath;
+        if (!std::filesystem::exists(path)) return std::nullopt;
+
+        return path;
+    }
 }

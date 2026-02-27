@@ -19,7 +19,6 @@ namespace MKD
     [[nodiscard]] std::expected<std::filesystem::path, std::string> findFileWithExtension(
         const std::filesystem::path& directoryPath, std::string_view extension);
 
-    [[nodiscard]] std::expected<std::string, std::error_code> readTextFile(const std::filesystem::path& path);
 
     [[nodiscard]] std::string makeFilestreamError(const std::ifstream& file, std::string_view context);
 

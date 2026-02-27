@@ -20,7 +20,7 @@ namespace MKD
     {
     public:
 
-        static std::expected<DictionaryPaths, std::string> create(const fs::path& productRoot);
+        static std::expected<DictionaryPaths, std::string> create(fs::path productRoot);
 
         [[nodiscard]] std::optional<fs::path> tryResolve(ResourceType type, std::string_view contentDir) const;
 

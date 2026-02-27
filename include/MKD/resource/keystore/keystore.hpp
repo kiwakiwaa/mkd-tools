@@ -5,7 +5,7 @@
 #pragma once
 
 #include "MKD/resource/common.hpp"
-#include "MKD/platform/fs.hpp"
+#include "MKD/platform/binary_file_reader.hpp"
 #include "page_reference.hpp"
 #include "keystore_lookup_result.hpp"
 

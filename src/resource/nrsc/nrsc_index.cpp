@@ -3,7 +3,7 @@
 //
 
 #include "MKD/resource/nrsc/nrsc_index.hpp"
-#include "MKD/platform/fs.hpp"
+#include "MKD/platform/binary_file_reader.hpp"
 
 #include <algorithm>
 #include <cassert>

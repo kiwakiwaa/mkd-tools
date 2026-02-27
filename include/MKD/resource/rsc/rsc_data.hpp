@@ -7,7 +7,7 @@
 #include "MKD/resource/rsc/rsc_index.hpp"
 #include "MKD/resource/rsc/rsc_crypto.hpp"
 #include "MKD/resource/zlib_decompressor.hpp"
-#include "MKD/platform/fs.hpp"
+#include "MKD/platform/binary_file_reader.hpp"
 
 #include <array>
 #include <filesystem>

@@ -9,12 +9,14 @@
 #include <optional>
 #include <vector>
 
+namespace fs = std::filesystem;
+
 namespace MKD::macOS
 {
     struct BookmarkData
     {
         std::vector<uint8_t> data;
-        std::filesystem::path resolvedPath;
+        fs::path resolvedPath;
     };
 
     class ScopedSecurityAccess
@@ -22,21 +24,18 @@ namespace MKD::macOS
     public:
 
         ScopedSecurityAccess() = default;
-        explicit ScopedSecurityAccess(const std::filesystem::path& path);
+        explicit ScopedSecurityAccess(const fs::path& path);
         ~ScopedSecurityAccess();
 
-        // not copyable
         ScopedSecurityAccess(const ScopedSecurityAccess&) = delete;
         ScopedSecurityAccess& operator=(const ScopedSecurityAccess&) = delete;
 
-        // movable
         ScopedSecurityAccess(ScopedSecurityAccess&&) noexcept;
         ScopedSecurityAccess& operator=(ScopedSecurityAccess&&) noexcept;
 
         [[nodiscard]] bool isValid() const;
 
     private:
-
         void release() noexcept;
 
         void* url_ = nullptr; // NSUrl*
@@ -45,18 +44,11 @@ namespace MKD::macOS
 
     struct BookmarkAccess
     {
-        std::filesystem::path path;
+        fs::path path;
         ScopedSecurityAccess access;
     };
 
     std::expected<BookmarkAccess, std::string> restoreAccessFromBookmark(const std::vector<uint8_t>& bookmarkData);
 
-    std::optional<BookmarkData> promptForDictionariesAccess();
-
-    std::optional<std::vector<uint8_t>> loadSavedBookmark();
-
-    void saveBookmark(const std::vector<uint8_t>& bookmarkData);
-
-    void clearSavedBookmark();
-
+    std::optional<BookmarkData> createSecurityScopedBookmark(const fs::path& path);
 }

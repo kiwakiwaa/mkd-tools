@@ -3,7 +3,7 @@
 //
 
 #include "MKD/resource/rsc/rsc_index.hpp"
-#include "MKD/platform/fs.hpp"
+#include "MKD/platform/binary_file_reader.hpp"
 
 #include <algorithm>
 #include <bit>

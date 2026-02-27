@@ -1,10 +1,33 @@
-#include "MKD/platform/fs.hpp"
+#include "MKD/platform/binary_file_reader.hpp"
 
 #include <fstream>
 #include <sstream>
 
 namespace MKD {
+    std::string makeFilestreamError(const std::ifstream& file, std::string_view context)
+    {
+        std::string error = std::format("Failed to {}: ", context);
 
+        if (file.eof())
+        {
+            error += "unexpected end of file";
+        }
+        else if (file.bad())
+        {
+            const std::error_code ec(errno, std::generic_category());
+            error += std::format("system error - {}", ec.message());
+        }
+        else if (file.fail())
+        {
+            error += "format or I/O error";
+        }
+        else
+        {
+            error += "unknown error";
+        }
+
+        return error;
+    }
 
     std::expected<BinaryFileReader, std::string> BinaryFileReader::open(const std::filesystem::path& filePath)
     {
@@ -57,7 +80,7 @@ namespace MKD {
         data.resize(size);
 
         const auto bytesToRead = static_cast<std::streamsize>(size);
-        file_.read(reinterpret_cast<char*>(data.data()), bytesToRead);
+        file_.read(data.data(), bytesToRead);
 
         if (!file_)
             return std::unexpected(makeFilestreamError(file_, "read bytes into string"));
@@ -97,62 +120,5 @@ namespace MKD {
         }
 
         return std::unexpected(std::format("No {} file found in: {}", extension, directoryPath.string()));
-    }
-
-
-    std::expected<std::string, std::error_code> readTextFile(const std::filesystem::path& path)
-    {
-        std::error_code ec;
-        if (!std::filesystem::exists(path, ec))
-            return std::unexpected(ec ? ec : std::make_error_code(std::errc::no_such_file_or_directory));
-
-        if (std::filesystem::is_directory(path))
-            return std::unexpected(ec ? ec : std::make_error_code(std::errc::is_a_directory));
-
-        const auto fileSize = std::filesystem::file_size(path, ec);
-        if (ec)
-            return std::unexpected(ec);
-
-        std::ifstream file(path, std::ios::in | std::ios::binary);
-        if (!file)
-        {
-            return std::unexpected(std::make_error_code(std::errc::io_error));
-        }
-
-        std::string content;
-        content.resize(fileSize);
-
-        if (!file.read(content.data(), static_cast<long>(fileSize)))
-        {
-            return std::unexpected(std::make_error_code(std::errc::io_error));
-        }
-
-        return content;
-    }
-
-
-    std::string makeFilestreamError(const std::ifstream& file, std::string_view context)
-    {
-        std::string error = std::format("Failed to {}: ", context);
-
-        if (file.eof())
-        {
-            error += "unexpected end of file";
-        }
-        else if (file.bad())
-        {
-            const std::error_code ec(errno, std::generic_category());
-            error += std::format("system error - {}", ec.message());
-        }
-        else if (file.fail())
-        {
-            error += "format or I/O error";
-        }
-        else
-        {
-            error += "unknown error";
-        }
-
-        return error;
     }
 }
