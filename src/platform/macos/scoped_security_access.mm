@@ -97,4 +97,30 @@ namespace MKD::macOS
             return BookmarkAccess{std::move(path), std::move(access)};
         }
     }
+
+
+    std::optional<BookmarkData> createSecurityScopedBookmark(const fs::path& path)
+    {
+        @autoreleasepool
+        {
+            NSString* pathStr = [NSString stringWithUTF8String:path.c_str()];
+            NSURL* url = [NSURL fileURLWithPath:pathStr];
+            if (!url) return std::nullopt;
+
+            NSError* error = nil;
+            NSData* bookmark = [url bookmarkDataWithOptions:
+                                    NSURLBookmarkCreationWithSecurityScope |
+                                    NSURLBookmarkCreationSecurityScopeAllowOnlyReadAccess
+                                    includingResourceValuesForKeys:nil
+                                    relativeToURL:nil
+                                    error:&error];
+
+            if (!bookmark || error) return std::nullopt;
+
+            BookmarkData result;
+            result.data.assign(static_cast<const uint8_t*>(bookmark.bytes), static_cast<const uint8_t*>(bookmark.bytes) + bookmark.length);
+            result.resolvedPath = path;
+            return result;
+        }
+    }
 }

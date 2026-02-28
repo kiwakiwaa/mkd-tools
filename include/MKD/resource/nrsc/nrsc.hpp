@@ -35,33 +35,27 @@ namespace MKD
          */
         static Result<Nrsc> open(const fs::path& directoryPath);
 
-
         /**
          * Get resource by string ID
          * - Calls findById from NrscIndex to do a binary search in the index
-         * - O(log(n))
          * @param id String ID of the resource
          * @return Data view of resource data, error string if failure
          */
         [[nodiscard]] Result<std::span<const uint8_t>> get(std::string_view id) const;
 
-
         /**
          * Get resource by index
          * - Calls getByIndex from NrscIndex
-         * - O(1)
          * @param index
          * @return
          */
         [[nodiscard]] Result<NrscItem> getByIndex(size_t index) const;
-
 
         /**
          * Get total number of resources
          * @return Number of resources
          */
         [[nodiscard]] size_t size() const noexcept;
-
 
         /**
          * @return true if there are no resources
@@ -97,8 +91,8 @@ namespace MKD
 
         };
 
-        Iterator begin() const;
-        Iterator end() const;
+        [[nodiscard]] Iterator begin() const;
+        [[nodiscard]] Iterator end() const;
 
         static_assert(std::forward_iterator<Iterator>);
 

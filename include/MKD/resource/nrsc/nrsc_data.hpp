@@ -29,7 +29,6 @@ namespace MKD
     * the index. Multiple numbered files (0.nrsc, 1.nrsc, 2.nrsc, ...) are used
     * to split large resource collections into chunks.
     *
-    * Workflow
     * - Load NrscIndex to get the table of contents
     * - Load NrscData to access the numbered resource files
     * - Look up a resource ID in the index to get an NrscIndexRecord
@@ -75,7 +74,6 @@ namespace MKD
          *
          * @param record
          * @return Span view of the data, or error string if failure
-         * @warning The returned span is only valid until the next call to get()
          */
         [[nodiscard]] Result<OwnedSpan> get(const NrscIndexRecord& record) const;
 
@@ -83,6 +81,12 @@ namespace MKD
     private:
         explicit NrscData(std::vector<NrscResourceFile>&& files);
 
+        /**
+         * Collects all .nrsc files in the directory and sorts them by sequence number
+         * - Memory maps the files on Unix platforms
+         * @param directoryPath Path to directory
+         * @return Vector of Nrsc resource files
+         */
         static Result<std::vector<NrscResourceFile>> discoverFiles(const fs::path& directoryPath);
 
         /**
@@ -100,8 +104,6 @@ namespace MKD
          *
          * @param record rscIndexRecord specifying compression format and expected decompressed length
          * @return Span view of the decompressed data, or error string if failure
-         * @warning The returned span is only valid until the next call to get(), as it may
-         *          reference readBuffer_ or the decompressor's internal buffer
          */
         static Result<OwnedSpan> readCompressed(const NrscResourceFile& file, const NrscIndexRecord& record);
 

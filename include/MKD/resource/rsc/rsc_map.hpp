@@ -23,10 +23,10 @@ namespace MKD
 
     struct MapRecord : BinaryStruct<MapRecord>
     {
-        uint32_t zOffset; // Global offset to compressed chunk
-        uint32_t ioffset; // Offset within decompressed chunk
+        uint32_t chunkGlobalOffset; // Global offset to compressed chunk
+        uint32_t itemOffset; // Offset within decompressed chunk
 
-        // if ioffset is set to 0xFFFFFFFF, it means that compressed chunks are not used and the data
+        // if itemOffset is set to 0xFFFFFFFF, it means that compressed chunks are not used and the data
         // should be read directly from the global offset. This is the case for fonts
 
         /**
@@ -64,8 +64,8 @@ struct std::formatter<MKD::MapRecord>
     static auto format(const MKD::MapRecord& record, std::format_context& ctx)
     {
         return std::format_to(ctx.out(),
-                              "zOffset: {:10} | ioffset: {:6}",
-                              record.zOffset,
-                              record.ioffset);
+                              "chunkGlobalOffset: {:10} | itemOffset: {:6}",
+                              record.chunkGlobalOffset,
+                              record.itemOffset);
     }
 };

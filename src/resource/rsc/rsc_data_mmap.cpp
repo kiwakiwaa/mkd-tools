@@ -91,13 +91,13 @@ namespace MKD
 
     Result<OwnedSpan> RscData::get(const MapRecord& record) const
     {
-        if (record.ioffset == 0xFFFFFFFF)
-            return readDirectData(record.zOffset);
+        if (record.itemOffset == 0xFFFFFFFF)
+            return readDirectData(record.chunkGlobalOffset);
 
-        auto chunk = getOrLoadChunk(record.zOffset);
+        auto chunk = getOrLoadChunk(record.chunkGlobalOffset);
         if (!chunk) return std::unexpected(chunk.error());
 
-        return parseItemFromChunk(std::move(*chunk), record.ioffset);
+        return parseItemFromChunk(std::move(*chunk), record.itemOffset);
     }
 
 

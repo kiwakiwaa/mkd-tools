@@ -71,8 +71,8 @@ namespace MKD
         uint32_t version; // 0x10000 or 0x20000
         uint32_t magic1; // Must be 0
         uint32_t wordsOffset; // Offset to words section
-        uint32_t idxOffset; // Offset to index section
-        uint32_t nextOffset; // Offset to conversion table (or 0)
+        uint32_t indexOffset; // Offset to index section
+        uint32_t conversionTableOffset; // Offset to conversion table (or 0)
         uint32_t magic5; // Must be 0
         uint32_t magic6; // Must be 0
         uint32_t magic7; // Must be 0
@@ -156,8 +156,7 @@ namespace MKD
 
         /**
          * Parse a word entry from the words section.
-         *
-         * Layout:  uint32_le pages_offset | 0x00 | null-terminated string
+         * Layout: uint32_le pages_offset | 0x00 | null-terminated string
          */
         struct WordEntry
         {
@@ -196,7 +195,6 @@ namespace MKD
 
         /**
          * Read a single index array.
-         *
          * Format: uint32_le count | uint32_le[count] offsets
          *
          * @param data   Buffer starting at the index section

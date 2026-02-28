@@ -15,7 +15,7 @@ namespace MKD
 
     void MapRecord::swapEndianness() noexcept
     {
-        zOffset = std::byteswap(zOffset);
-        ioffset = std::byteswap(ioffset);
+        chunkGlobalOffset = std::byteswap(chunkGlobalOffset);
+        itemOffset = std::byteswap(itemOffset);
     }
 }

@@ -121,20 +121,4 @@ namespace MKD
     : index_(std::move(index)), data_(std::move(data))
     {
     }
-
-
-    std::optional<std::string> Rsc::getDictId(const fs::path& directoryPath)
-    {
-        std::vector<std::string> components;
-        for (const auto& part : directoryPath)
-            components.emplace_back(part.string());
-
-        for (size_t i = 0; i < components.size(); ++i)
-        {
-            if (components[i] == "dictionaries")
-                return components.at(i + 1);
-        }
-
-        return std::nullopt;
-    }
 }

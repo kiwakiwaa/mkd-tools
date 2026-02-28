@@ -11,7 +11,7 @@ namespace MKD
 {
     Result<RscData> RscData::load(const fs::path& directoryPath,
                                   std::string_view dictId,
-                                  uint32_t mapVersion)
+                                  const uint32_t mapVersion)
     {
         auto files = discoverFiles(directoryPath);
         if (!files) return std::unexpected(files.error());
@@ -112,9 +112,9 @@ namespace MKD
     Result<OwnedSpan> RscData::get(const MapRecord& record) const
     {
         if (record.ioffset == 0xFFFFFFFF)
-            return readDirectData(record.zOffset);
+            return readDirectData(record.chunkGlobalOffset);
 
-        auto chunk = loadChunk(record.zOffset);
+        auto chunk = loadChunk(record.chunkGlobalOffset);
         if (!chunk) return std::unexpected(chunk.error());
 
         return parseItemFromChunk(std::move(*chunk), record.ioffset);

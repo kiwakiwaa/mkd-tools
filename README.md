@@ -23,9 +23,9 @@ mkd-tools <dict_id>            # shorthand for 'export <dict_id>'
 On macOS, installed dictionaries are detected automatically.\
 You can also point to a dictionary directory with `-d <path>`.
 ```
-mkd-tools export DAIJISEN2
-mkd-tools -d /path/to/dicts export DAIJISEN2
-mkd-tools export DAIJISEN2 --only entries --pretty
+mkd-tools export <dict_id>
+mkd-tools -d /path/to/dicts export <dict_id>
+mkd-tools export <dict_id> --only entries --pretty
 ```
 
 Use `--only` to limit export to specific resource types (`audio`, `entries`, `graphics`, `fonts`, `keystores`, `headlines`). `--pretty` will format XML entry content.

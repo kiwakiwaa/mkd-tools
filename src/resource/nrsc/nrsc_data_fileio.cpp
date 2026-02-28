@@ -112,12 +112,11 @@ namespace MKD
         auto bytes = readBytesFromFile(file.filePath, record.offset(), record.len());
         if (!bytes) return std::unexpected(bytes.error());
 
-        ZlibDecompressor decompressor;
+        const ZlibDecompressor decompressor;
         auto result = decompressor.decompress(*bytes, bytes->size());
         if (!result) return std::unexpected(result.error());
 
-        auto owned = std::make_shared<const std::vector<uint8_t>>(
-            decompressor.takeBuffer());
+        auto owned = std::make_shared<const std::vector<uint8_t>>(decompressor.takeBuffer());
 
         return OwnedSpan{std::move(owned)};
     }

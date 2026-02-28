@@ -17,8 +17,8 @@ namespace MKD
     // Reference to a dictionary entry
     struct PageReference
     {
-        uint32_t page;    // Page number in dictionary content
-        uint16_t item;    // Item ID within page (HTML element id)
+        uint32_t page; // Page number in dictionary content
+        uint16_t item; // Item ID within page (HTML element id)
 
         auto operator<=>(const PageReference&) const = default;
     };

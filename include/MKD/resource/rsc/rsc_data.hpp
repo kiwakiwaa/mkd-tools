@@ -33,7 +33,7 @@ namespace MKD
     *
     * The .rsc format is the content storage system for XML entry data, audio and fonts.
     * .rsc files contain compressed (and also optionally encrypted) dictionary entries in XML format.
-    *  - is also used in `index` for dict RUIGO (Apple binary .plist files)
+    *  - also used in `/index` for dict RUIGO (Apple binary .plist files - not implemented yet)
     *
     * Overview:
     * ┌─────────────────────────────────────────────────────────────────┐
@@ -84,7 +84,7 @@ namespace MKD
     * └─────────────────────────────────────────────────────────────────┘
     *
     * Encryption Details:
-    * - Algorithm: Custom XOR based algorithm 'HMDicEncoder::Decode'
+    * - Algorithm: XOR based algorithm 'HMDicEncoder::Decode'
     * - Key: Dictionary-specific 32-byte key
     * - Format marker: First 4 bytes are 0x00000000
     * - Process: Decrypt → Decompress → Parse items
@@ -132,8 +132,6 @@ namespace MKD
          *
          * @param record MapRecord specifying the chunk offset and item offset
          * @return Span view of item data, or error string if failure
-         *
-         * @warning The returned span is only valid until the next call to get()
          */
         [[nodiscard]] Result<OwnedSpan> get(const MapRecord& record) const;
 
@@ -171,12 +169,33 @@ namespace MKD
         std::optional<std::array<uint8_t, 32>> decryptionKey_;
 
 #if defined(__APPLE__) || defined(__linux__)
+        /**
+         * Resolves a global offset to a direct memory span
+         * @param offset Offset in global address space
+         * @param length Number of bytes to access from the offset
+         * @return Span of bytes directly mapped from the appropriate .rsc file or error string
+         */
         [[nodiscard]] Result<std::span<const uint8_t>> resolveGlobal(size_t offset, size_t length) const;
 
+        /**
+         * Retrieves or loads a compressed chunk
+         * @param globalOffset Global offset pointing to the start of a chunk
+         * @return Shared pointer to the decoded chunk data or error string
+         */
         [[nodiscard]] Result<std::shared_ptr<const std::vector<uint8_t>>> getOrLoadChunk(size_t globalOffset) const;
 
+        /**
+         * Decodes a chunk at the specified global offset
+         * @param globalOffset Offset in global address space
+         * @return Decompressed chunk data as vector of bytes or error string
+         */
         [[nodiscard]] Result<std::vector<uint8_t>> decodeChunkAt(size_t globalOffset) const;
 
+        /**
+         * Reads and decrypts an encrypted region
+         * @param globalOffset Offset in global address space
+         * @return Decrypted data as vector of bytes or error string
+         */
         [[nodiscard]] Result<std::vector<uint8_t>> readEncryptedRegion(size_t globalOffset) const;
 
         struct ChunkCache

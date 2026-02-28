@@ -74,13 +74,11 @@ namespace MKD
          */
         static Result<NrscIndex> load(const fs::path& directoryPath);
 
-
         /**
          * Find a record by string ID (binary search)
          * @return NrscIndexRecord or error string if failure
          */
         [[nodiscard]] Result<NrscIndexRecord> findById(std::string_view id) const;
-
 
         /**
          * Get record by index
@@ -89,20 +87,17 @@ namespace MKD
          */
         [[nodiscard]] Result<std::pair<std::string_view, NrscIndexRecord>> getByIndex(size_t index) const;
 
-
         /**
          * Get total number of records
          * @return Number of records
          */
         [[nodiscard]] size_t size() const noexcept;
 
-
         /**
          * Check if NrscIndex is empty
          * @return true if empty
          */
         [[nodiscard]] bool empty() const noexcept;
-
 
         class Iterator
         {
@@ -149,9 +144,7 @@ namespace MKD
 
 
     private:
-
         NrscIndex(std::vector<NrscIndexRecord>&& records, std::string&& idStrings, size_t headerSize);
-
 
         /**
          * Get ID string at given offset
@@ -159,7 +152,6 @@ namespace MKD
          * @return ID string or error string if failure
          */
         [[nodiscard]] Result<std::string_view> getIdAt(size_t offset) const;
-
 
         std::vector<NrscIndexRecord> records_;  // All index records, sorted by ID
         std::string idStrings_;                 // Concatenated null-terminated ID strings

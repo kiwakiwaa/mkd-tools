@@ -85,16 +85,13 @@ namespace MKD
             size_t index_ = 0;
         };
 
-        Iterator begin() const;
-        Iterator end() const;
+        [[nodiscard]] Iterator begin() const;
+        [[nodiscard]] Iterator end() const;
 
         static_assert(std::forward_iterator<Iterator>);
 
     private:
-
         explicit Rsc(RscIndex&& index, RscData&& data);
-
-        static std::optional<std::string> getDictId(const fs::path& directoryPath);
 
         RscIndex index_;
         RscData data_;

@@ -80,21 +80,24 @@ namespace MKD
         const auto dictPath = macOS::getMonokakidoDictionariesPath(
             MONOKAKIDO_GROUP_ID, DICTIONARIES_SUBPATH);
 
-        auto folderResult = macOS::promptForFolder({
+        auto selectedPath = macOS::promptForFolder({
             .message = "Please select the Monokakido Dictionaries folder to grant access",
             .confirmButton = "Grant Access",
             .initialDirectory = dictPath,
         });
 
-        if (!folderResult) return false;
+        if (!selectedPath) return false;
 
-        macOS::saveBookmark(folderResult->bookmarkData);
-        securityAccess_ = macOS::ScopedSecurityAccess(folderResult->path);
+        auto bookmarkData = macOS::createSecurityScopedBookmark(*selectedPath);
+        if (!bookmarkData) return false;
+
+        macOS::saveBookmark(bookmarkData->data);
+        securityAccess_ = macOS::ScopedSecurityAccess(bookmarkData->resolvedPath);
 
         if (!securityAccess_.isValid())
             return false;
 
-        authorizedPath_ = folderResult->path;
+        authorizedPath_ = bookmarkData->resolvedPath;
         cachedDictionaries_.reset();
         return true;
     }

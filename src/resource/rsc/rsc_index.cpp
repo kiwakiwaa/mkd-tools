@@ -39,8 +39,6 @@ namespace MKD
 
     Result<MapRecord> RscIndex::findById(uint32_t itemId) const
     {
-        // If no idx records, use direct indexing
-        // Seems to only be the case for fonts
         if (!idxRecords_.has_value())
         {
             if (itemId >= mapRecords_.size())

@@ -60,8 +60,8 @@ TEST_F(RscIndexTest, GetRecordByIndex)
         MKD::test::verbosePrint("  [{:4}] ID: {:8} | {}\n", i, itemId, mapRecord);
 
         // Validate record fields are reasonable
-        EXPECT_GE(mapRecord.zOffset, 0u) << "zOffset should be non-negative";
-        EXPECT_GE(mapRecord.ioffset, 0u) << "ioffset should be non-negative";
+        EXPECT_GE(mapRecord.zOffset, 0u) << "chunkGlobalOffset should be non-negative";
+        EXPECT_GE(mapRecord.ioffset, 0u) << "itemOffset should be non-negative";
     }
 }
 

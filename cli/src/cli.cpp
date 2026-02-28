@@ -298,6 +298,7 @@ namespace MKDCLI
 
     void CLIApp::printVersion()
     {
+        MKD::macOS::clearSavedBookmark();
         std::cout << "mkd-tools 0.1.0\n";
     }
 

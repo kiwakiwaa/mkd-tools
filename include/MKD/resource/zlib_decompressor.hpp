@@ -30,11 +30,25 @@ namespace MKD
         ZlibDecompressor(ZlibDecompressor&&) = default;
         ZlibDecompressor& operator=(ZlibDecompressor&&) = default;
 
-        // span is valid until next 'decompress' call or object destruction
+        /**
+         * Decompresses zlib-compressed data into the internal buffer
+         * @param compressed Span of compressed input data
+         * @param expectedSize Initial guess for decompressed size
+         * @return Span pointing to decompressed data in internal buffer or error string
+         */
         [[nodiscard]] Result<std::span<const uint8_t>> decompress(std::span<const uint8_t> compressed, size_t expectedSize) const;
 
+        /**
+         * Takes ownership of the internal decompression buffer
+         * @return Vector containing the decompressed data
+         */
         [[nodiscard]] std::vector<uint8_t> takeBuffer() const;
 
+        /**
+         * Detects if data is zlib-compressed by examining header bytes
+         * @param data Span of data to check
+         * @return true if data appears to be zlib-compressed
+         */
         static bool isZlibCompressed(std::span<const uint8_t> data);
 
     private:

@@ -15,8 +15,8 @@ namespace MKD
     {
         version = std::byteswap(version);
         wordsOffset = std::byteswap(wordsOffset);
-        idxOffset = std::byteswap(idxOffset);
-        nextOffset = std::byteswap(nextOffset);
+        indexOffset = std::byteswap(indexOffset);
+        conversionTableOffset = std::byteswap(conversionTableOffset);
     }
 
     size_t KeystoreHeader::headerSize() const noexcept
@@ -71,8 +71,8 @@ namespace MKD
         auto fileData = readFileData(*reader, fileSize);
         if (!fileData) return std::unexpected(fileData.error());
 
-        const size_t indexEnd = header->nextOffset != 0 ? header->nextOffset : fileSize;
-        auto indexSpan = std::span(*fileData).subspan(header->idxOffset, indexEnd - header->idxOffset);
+        const size_t indexEnd = header->conversionTableOffset != 0 ? header->conversionTableOffset : fileSize;
+        auto indexSpan = std::span(*fileData).subspan(header->indexOffset, indexEnd - header->indexOffset);
 
         auto idxHeader = readIndexHeader(indexSpan);
         if (!idxHeader) return std::unexpected(idxHeader.error());
@@ -80,7 +80,7 @@ namespace MKD
         auto indices = readAllIndices(indexSpan, *idxHeader);
         if (!indices) return std::unexpected(indices.error());
 
-        auto convTable = parseConversionTable(*fileData, header->nextOffset, fileSize);
+        auto convTable = parseConversionTable(*fileData, header->conversionTableOffset, fileSize);
         if (!convTable) return std::unexpected(convTable.error());
 
         return Keystore(
@@ -226,19 +226,19 @@ namespace MKD
         {
             auto ext = reader.readStructPartial<KeystoreHeader>(16);
             if (!ext) return std::unexpected("Failed to read v2 header extension");
-            std::memcpy(&header.nextOffset, &ext->version, 16);
+            std::memcpy(&header.conversionTableOffset, &ext->version, 16);
         }
 
         if (header.magic1 != 0)
             return std::unexpected("Invalid magic1 field");
-        if (header.wordsOffset >= header.idxOffset)
+        if (header.wordsOffset >= header.indexOffset)
             return std::unexpected("Invalid offset ordering: wordsOffset >= idxOffset");
 
         if (header.version == KEYSTORE_V2)
         {
             if (header.magic5 != 0 || header.magic6 != 0 || header.magic7 != 0)
                 return std::unexpected("Invalid magic fields in v2 header");
-            if (header.nextOffset != 0 && header.idxOffset >= header.nextOffset)
+            if (header.conversionTableOffset != 0 && header.indexOffset >= header.conversionTableOffset)
                 return std::unexpected("Invalid next offset in v2 header");
         }
 
