@@ -25,7 +25,7 @@ namespace MKD
     }
 
 
-    Result<std::span<const uint8_t>> Rsc::get(const uint32_t itemId) const
+    Result<OwnedSpan> Rsc::get(const uint32_t itemId) const
     {
         const auto record = index_.findById(itemId);
         if (!record)
@@ -46,7 +46,7 @@ namespace MKD
         if (!dataResult)
             return std::unexpected(dataResult.error());
 
-        return RscItem{id, *dataResult};
+        return RscItem{id, dataResult->span()};
     }
 
 

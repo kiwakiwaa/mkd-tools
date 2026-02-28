@@ -18,7 +18,7 @@ namespace MKD
             return result;
 
         const fs::path dir = options.createSubdirectories
-                                 ? options.outputDirectory / "headline"
+                                 ? options.outputDirectory / "Headline"
                                  : options.outputDirectory;
         fs::path outputPath = dir / std::format("{}.tsv", store.filename());
 

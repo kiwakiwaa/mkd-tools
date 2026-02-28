@@ -10,7 +10,6 @@
 #include <cstdint>
 #include <expected>
 #include <span>
-#include <string>
 #include <string_view>
 #include <vector>
 
@@ -19,7 +18,7 @@ namespace MKD
     /**
      * Decrypts .rsc file chunks from dictionaries
      * - This is a custom cipher, not a standard cryptographic algorithm
-     * - The DATA1 and DATA2 tables are embedded in the app binary
+     * - The kData1 and kData2 tables are embedded in the app binary
      * - Each dictionary product uses a unique 32-byte key
      */
     class RscCrypto

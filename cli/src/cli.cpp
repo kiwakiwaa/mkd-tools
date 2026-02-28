@@ -30,7 +30,6 @@ namespace MKDCLI
 
     namespace
     {
-        // Check if arg matches a short or long flag.
         bool isFlag(std::string_view arg, std::string_view shortForm, std::string_view longForm)
         {
             return arg == shortForm || arg == longForm;
@@ -143,7 +142,7 @@ namespace MKDCLI
                     continue;
                 }
 
-                if (arg == "--pretty-xml")
+                if (arg == "--pretty")
                 {
                     opts.prettyPrintXml = true;
                     continue;
@@ -261,31 +260,31 @@ namespace MKDCLI
 
                 << Colour::bold("USAGE:\n")
                 << "  " << program << " <command> [options]\n"
-                << "  " << program << " <dict_id>            "
+                << "  " << program << " <dict_id>                "
                 << Colour::dim("(shorthand for 'export <dict_id>')") << "\n\n"
 
                 << Colour::bold("COMMANDS:\n")
-                << "  list,   -l, --list            List available dictionaries\n"
-                << "  info    <dict_id>             Show detailed dictionary info\n"
+                << "  list,   -l, --list              List available dictionaries\n"
+                << "  info    <dict_id>               Show detailed dictionary info\n"
                 << "  export, -e, --export <dict_id>  Export dictionary resources\n"
-                << "  help,   -h, --help            Show this help\n"
-                << "  --version                     Show version\n\n"
+                << "  help,   -h, --help              Show this help\n"
+                << "  --version                       Show version\n\n"
 
                 << Colour::bold("GLOBAL OPTIONS:\n")
-                << "  -d, --dir <path>    Use a directory as dictionary source\n"
-                << "  --no-u          Disable coloured output\n\n"
+                << "  -d, --dir <path>                Use a directory as dictionary source\n"
+                << "  --no-u                          Disable coloured output\n\n"
 
                 << Colour::bold("EXPORT OPTIONS:\n")
-                << "  -o, --output <path>           Output directory "
+                << "  -o, --output <path>             Output directory "
                 << Colour::dim("(default: ~/Documents/mkd-export)") << "\n"
-                << "  --only <type>                 Export only this resource type "
+                << "  --only <type>                   Export only this resource type "
                 << Colour::dim("(repeatable)") << "\n"
-                << "                                "
+                << "                                  "
                 << Colour::dim("types: audio, entries, graphics, fonts, keystores, headlines") << "\n"
-                << "  --overwrite                   Overwrite existing files\n"
-                << "  --pretty-xml                  Pretty-print XML entry content\n"
-                << "  --keystore-mode <mode>        "
-                << Colour::dim("forward | inverse | both") << " (default: inverse)\n\n"
+                << "  --overwrite                     Overwrite existing files\n"
+                << "  --pretty                        Pretty-print XML entry content\n"
+                << "  --keystore-mode <mode>          "
+                << Colour::dim("inverse | forward | both") << " (default: inverse)\n\n"
 
                 << Colour::bold("EXAMPLES:\n")
 #ifdef __APPLE__

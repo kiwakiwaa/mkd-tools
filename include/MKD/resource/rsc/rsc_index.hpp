@@ -21,9 +21,8 @@ namespace MKD
 {
     /**
      * RSC Index File Format (contents.idx + contents.map)
-     * ====================================================
      *
-     * The RSC index system uses a two-file approach to map item IDs to their
+     * The RSC index system uses a two files to map item IDs to their
      * locations in .rsc data files. The design separates ID management from
      * location data.
      *
@@ -33,7 +32,7 @@ namespace MKD
      * ┌─────────────────────────────────────────────────────────────────┐
      * │ Header (8 bytes)                                                │
      * │  ├─ length (4 bytes): Number of IdxRecords                      │
-     * │  └─ padding (4 bytes): Reserved/unused                          │
+     * │  └─ padding (4 bytes): unused                                   │
      * ├─────────────────────────────────────────────────────────────────┤
      * │ IdxRecords Array (length × 8 bytes)                             │
      * │  Each record contains:                                          │
@@ -58,14 +57,14 @@ namespace MKD
      *
      * Lookup Process:
     *
-     * WITH idx file:
+     * with idx file:
      * ┌─────────┐     ┌─────────────┐     ┌─────────────┐     ┌──────────┐
      * │ Item ID │ --> │ contents.idx│ --> │ Map Index   │ --> │ Location │
      * │  12345  │     │ IdxRecord   │     │      7      │     │  in .rsc │
      * └─────────┘     └─────────────┘     └─────────────┘     └──────────┘
      *                  Binary search       Direct access       via MapRecord
      *
-     * WITHOUT idx file:
+     * only map file:
      * ┌─────────┐     ┌─────────────┐     ┌──────────┐
      * │ Item ID │ --> │ Map Index   │ --> │ Location │
      * │    7    │     │   (same)    │     │  in .rsc │

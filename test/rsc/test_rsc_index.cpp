@@ -9,7 +9,7 @@
 #include "MKD/platform/macos/fs.hpp"
 #include "MKD/platform/macos/macos_dictionary_source.hpp"
 #include "MKD/resource/rsc/rsc_index.hpp"
-#include "MKD/resource/rsc/rsc_data.hpp"
+#include "MKD/resource/rsc/rsc_data_fileio.hpp"
 
 class RscIndexTest : public ::testing::Test
 {

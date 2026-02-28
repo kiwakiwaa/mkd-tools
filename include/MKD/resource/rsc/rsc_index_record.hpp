@@ -11,16 +11,9 @@ namespace MKD
 {
     /**
      * IdxRecord - ID to Index Mapping (contents.idx)
-     * ===============================================
      *
      * Maps arbitrary item IDs to sequential map indices. This indirection
      * allows dictionaries to use non-sequential numbering while keeping the underlying MapRecords sequential.
-     *
-     * Binary Layout (8 bytes):
-     * ┌────────────────────────┬────────────────────────┐
-     * │ itemId (4 bytes)       │ mapIdx (4 bytes)       │
-     * │ Custom entry ID        │ Index into map array   │
-     * └────────────────────────┴────────────────────────┘
      */
     struct IdxRecord : BinaryStruct<IdxRecord>
     {

@@ -12,13 +12,6 @@ namespace MKD
 {
     /**
      * MapHeader - contents.map File Header
-     * =====================================
-     *
-     * Binary Layout (8 bytes):
-     * ┌────────────────────────┬────────────────────────┐
-     * │ version (4 bytes)      │ recordCount (4 bytes)  │
-     * │ Format version         │ Number of MapRecords   │
-     * └────────────────────────┴────────────────────────┘
      */
     struct MapHeader : BinaryStruct<MapHeader>
     {
@@ -33,7 +26,7 @@ namespace MKD
         uint32_t zOffset; // Global offset to compressed chunk
         uint32_t ioffset; // Offset within decompressed chunk
 
-        // if iOffset is set to 0xFFFFFFFF, it means that compressed chunks are not used and the data
+        // if ioffset is set to 0xFFFFFFFF, it means that compressed chunks are not used and the data
         // should be read directly from the global offset. This is the case for fonts
 
         /**

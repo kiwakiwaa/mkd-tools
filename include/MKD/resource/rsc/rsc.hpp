@@ -38,7 +38,7 @@ namespace MKD
          * map record, it will use that to retrieve the data from the .rsc
          * this works well for dictionary entries where you want to get the xml data for a given itemId
          */
-        [[nodiscard]] Result<std::span<const uint8_t>> get(uint32_t itemId) const;
+        [[nodiscard]] Result<OwnedSpan> get(uint32_t itemId) const;
 
         /**
          * Get RscItem by index

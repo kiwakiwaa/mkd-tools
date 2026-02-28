@@ -8,39 +8,34 @@
 #include <thread>
 #include <vector>
 
-namespace MKD
+namespace MKD::detail
 {
-    void parallel_for(const size_t count, const std::function<void(size_t)>& body)
+    void parallel_dispatch(const size_t count, void* ctx, void(*fn)(size_t, void*))
     {
-        if (count == 0)
-            return;
+        const auto nThreads = std::min(count, static_cast<size_t>(std::thread::hardware_concurrency()));
 
-        const size_t nThreads = std::min(count, static_cast<size_t>(std::thread::hardware_concurrency()));
         if (nThreads <= 1)
         {
             for (size_t i = 0; i < count; ++i)
-                body(i);
+                fn(i, ctx);
             return;
         }
 
-        const size_t chunkSize = (count + nThreads - 1) / nThreads;
+        const size_t chunk = (count + nThreads - 1) / nThreads;
         std::vector<std::jthread> workers;
         workers.reserve(nThreads - 1);
 
         for (size_t t = 1; t < nThreads; ++t)
         {
-            const size_t start = t * chunkSize;
-            const size_t end = std::min(start + chunkSize, count);
-            workers.emplace_back([&body, start, end] {
+            const size_t start = t * chunk;
+            const size_t end = std::min(start + chunk, count);
+            workers.emplace_back([=, &ctx, &fn] {
                 for (size_t i = start; i < end; ++i)
-                    body(i);
+                    fn(i, ctx);
             });
         }
 
-        // Use the calling thread for the first chunk
-        for (size_t i = 0, end = std::min(chunkSize, count); i < end; ++i)
-            body(i);
-
-        // jthreads join automatically on destruction
+        for (size_t i = 0, end = std::min(chunk, count); i < end; ++i)
+            fn(i, ctx);
     }
 }

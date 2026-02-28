@@ -6,7 +6,6 @@
 #include "MKD/output/export_accumulator.hpp"
 #include "MKD/platform/parallel.hpp"
 
-#include <mutex>
 #include <pugixml.h>
 #include <sstream>
 
@@ -21,17 +20,19 @@ namespace MKD
             return ec;
         }
 
-        fs::path buildOutputPath(const ExportOptions& options, const ResourceType type, std::string_view filename)
+        fs::path buildOutputDir(const ExportOptions& options, const ResourceType type)
         {
             if (options.createSubdirectories)
-                return options.outputDirectory / resourceTypeName(type) / filename;
-            return options.outputDirectory / filename;
+                return options.outputDirectory / resourceTypeName(type);
+            return options.outputDirectory;
         }
     }
 
 
-    Result<ExportResult> ResourceExporter::exportAll(
-        const Rsc& rsc, const ExportOptions& options, const ResourceType type)
+
+
+
+    Result<ExportResult> ResourceExporter::exportAll(const Rsc& rsc, const ExportOptions& options, const ResourceType type)
     {
         if (rsc.empty())
             return ExportResult{};
@@ -40,38 +41,38 @@ namespace MKD
             return std::unexpected(std::format("Failed to create output directories: {}", ec.message()));
 
         const auto ext = type == ResourceType::Entries ? ".xml" : ".aac";
+        const auto baseDir = buildOutputDir(options, type);
         ExportAccumulator acc(rsc.size(), type, options.progressCallback);
-        std::mutex readMutex;
 
-        parallel_for(rsc.size(), [&](const size_t i) {
-            uint32_t itemId;
-            std::vector<uint8_t> owned;
+#if defined(__APPLE__) || defined(__linux__)
+        parallelFor(rsc.size(), [&](const size_t i) {
+            auto item = rsc.getByIndex(i);
+            if (!item)
             {
-                std::lock_guard lock(readMutex);
-                auto item = rsc.getByIndex(i);
-                if (!item)
-                {
-                    acc.recordFailure(std::format("Index {}: {}", i, item.error()));
-                    return;
-                }
-                itemId = item->itemId;
-                owned.assign(item->data.begin(), item->data.end());
+                acc.recordFailure(item.error());
+                return;
             }
 
-            if (options.prettyPrintXml && type == ResourceType::Entries)
-            {
-                if (auto pretty = prettyPrintXml(owned); !pretty.empty())
-                    owned = std::move(pretty);
-            }
-
-            const auto filename = std::format("{:06}.{}", itemId, ext);
-            if (const auto outputPath = buildOutputPath(options, type, filename); shouldSkipExisting(outputPath, options.overwriteExisting))
+            const auto filename = std::format("{:06}{}", item->itemId, ext);
+            if (const auto path = baseDir / filename; shouldSkipExisting(path, options.overwriteExisting))
                 acc.recordSkip();
-            else if (auto result = writeData(owned, outputPath))
-                acc.recordExport(owned.size());
+            else if (auto r = writeData(item->data, path))
+                acc.recordExport(item->data.size());
             else
-                acc.recordFailure(std::format("Entry {}: {}", itemId, result.error()));
+                acc.recordFailure(std::format("Entry {}: {}", item->itemId, r.error()));
         });
+#else
+        for (const auto [itemId, data] : rsc)
+        {
+            const auto filename = std::format("{:06}{}", itemId, ext);
+            if (const auto path = baseDir / filename; shouldSkipExisting(path, options.overwriteExisting))
+                acc.recordSkip();
+            else if (auto r = writeData(data, path))
+                acc.recordExport(data.size());
+            else
+                acc.recordFailure(std::format("Entry {}: {}", itemId, r.error()));
+        }
+#endif
 
         return acc.finalize();
     }
@@ -86,34 +87,41 @@ namespace MKD
         if (const auto ec = createOutputDirs(options, type))
             return std::unexpected(std::format("Failed to create output directories: {}", ec.message()));
 
+        const auto baseDir = buildOutputDir(options, type);
         ExportAccumulator acc(nrsc.size(), type, options.progressCallback);
-        std::mutex readMutex;
 
-        parallel_for(nrsc.size(), [&](const size_t i) {
-            std::string id;
-            std::vector<uint8_t> owned;
+#if defined(__APPLE__) || defined(__linux__)
+        parallelFor(nrsc.size(), [&](const size_t i) {
+            auto item = nrsc.getByIndex(i);
+            if (!item)
             {
-                std::lock_guard lock(readMutex);
-                auto item = nrsc.getByIndex(i);
-                if (!item)
-                {
-                    acc.recordFailure(std::format("Index {}: {}", i, item.error()));
-                    return;
-                }
-                id = std::string(item->id);
-                owned.assign(item->data.begin(), item->data.end());
+                acc.recordFailure(std::format("Index {}: {}", i, item.error()));
+                return;
             }
 
             // nrsc items with no extension in their ID are audio files
-            const bool isAudio = id.find('.') == std::string::npos;
-            auto filename = isAudio ? std::format("{}.aac", id) : id;
-            if (auto outputPath = buildOutputPath(options, type, filename); shouldSkipExisting(outputPath, options.overwriteExisting))
+            const bool isAudio = item->id.find('.') == std::string::npos;
+            const auto filename = isAudio ? std::format("{}.aac", item->id) : std::string(item->id);
+            if (const auto outputPath = baseDir / filename; shouldSkipExisting(outputPath, options.overwriteExisting))
                 acc.recordSkip();
-            else if (auto result = writeData(owned, outputPath))
-                acc.recordExport(owned.size());
+            else if (auto result = writeData(item->data, outputPath))
+                acc.recordExport(item->data.size());
             else
-                acc.recordFailure(std::format("{}: {}", id, result.error()));
+                acc.recordFailure(std::format("{}: {}", item->id, result.error()));
         });
+#else
+        for (const auto [itemId, data] : nrsc)
+        {
+            const bool isAudio = itemId.find('.') == std::string::npos;
+            const auto filename = isAudio ? std::format("{}.aac", itemId) : std::string(itemId);
+            if (const auto path = baseDir / filename; shouldSkipExisting(path, options.overwriteExisting))
+                acc.recordSkip();
+            else if (auto r = writeData(data, path))
+                acc.recordExport(data.size());
+            else
+                acc.recordFailure(std::format("Entry {}: {}", itemId, r.error()));
+        }
+#endif
 
         return acc.finalize();
     }
@@ -143,8 +151,9 @@ namespace MKD
         if (!extension)
             return std::unexpected("Unrecognized font type");
 
+        auto baseDir = buildOutputDir(options, ResourceType::Fonts);
         auto filename = std::format("{}.{}", font.name(), *extension);
-        if (auto outputPath = buildOutputPath(options, ResourceType::Fonts, filename); shouldSkipExisting(outputPath, options.overwriteExisting))
+        if (auto outputPath = baseDir / filename; shouldSkipExisting(outputPath, options.overwriteExisting))
         {
             result.skipped = 1;
         }

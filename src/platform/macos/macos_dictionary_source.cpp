@@ -72,9 +72,9 @@ namespace MKD
         if (activateProcess)
             macOS::activateAsAccessory();
 
-        auto dictPath = macOS::getMonokakidoDictionariesPath(MONOKAKIDO_GROUP_ID, DICTIONARIES_SUBPATH);
+        const auto dictPath = macOS::getMonokakidoDictionariesPath(MONOKAKIDO_GROUP_ID, DICTIONARIES_SUBPATH);
 
-        auto selectedPath = macOS::promptForFolder({
+        const auto selectedPath = macOS::promptForFolder({
             .message = "Please select the Monokakido Dictionaries folder to grant access",
             .confirmButton = "Grant Access",
             .initialDirectory = dictPath,

@@ -20,7 +20,7 @@ namespace MKD
         ExportResult combined;
 
         const fs::path dir = options.createSubdirectories
-                                 ? options.outputDirectory / "keystore"
+                                 ? options.outputDirectory / "Keystore"
                                  : options.outputDirectory;
 
         if (hasFlag(options.keystoreExportMode, KeystoreExportMode::Forward))

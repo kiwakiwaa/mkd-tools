@@ -22,7 +22,6 @@ namespace MKD
 {
     /**
      * NRSC Index File Format (.nidx)
-     * ==============================
      *
      * The index.nidx file acts as a table of contents for .nrsc resource files.
      * It maps string IDs to their locations in the numbered resource files.
