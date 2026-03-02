@@ -47,8 +47,12 @@ namespace MKD
          * @note The key must match the one used during encryption, otherwise
          *       the output will be garbage data.
          */
-        static Result<std::vector<uint8_t>> decrypt(std::span<const uint8_t> encryptedData,
-                                                                        const std::array<uint8_t, 32>& key);
+        static Result<std::vector<uint8_t>> decrypt(std::span<const uint8_t> encryptedData, const std::array<uint8_t, 32>& key);
+
+        /**
+         * For encrypting data (inverse HMDicEncoder::Decode for fun/testing purposes)
+         */
+        static std::vector<uint8_t> encrypt(std::span<const uint8_t> plaintext, const std::array<uint8_t, 32>& key);
 
     private:
 
@@ -84,6 +88,14 @@ namespace MKD
          * @return 32 byte hash
          */
         static std::array<uint8_t, 32> sha256(std::span<const uint8_t> data);
+
+
+        /**
+         * Inverse of permuteData that scrambles the data after XOR cipher is applied
+         */
+        static void inversePermuteData(std::span<const uint8_t> src, std::span<uint8_t> dst, uint32_t checksum);
+
+
 
     };
 }

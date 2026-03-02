@@ -20,7 +20,7 @@ protected:
     void SetUp() override
     {
         const auto containerPath = MKD::macOS::getContainerPathByGroupIdentifier(MKD::MONOKAKIDO_GROUP_ID);
-        const auto dictionariesPath = containerPath / MKD::DICTIONARIES_PATH;
+        const auto dictionariesPath = containerPath / MKD::DICTIONARIES_SUBPATH;
 
         dictId_ = "KJT.J";
         testDataPath_ = dictionariesPath / "KJT" / "Contents" / "KJT" / "contents";
@@ -69,7 +69,7 @@ TEST_F(RscDataTest, GetRecordData)
     const auto& data = dataSpan.value();
     EXPECT_GT(data.size(), 0) << "Retrieved data should not be empty";
 
-    const auto xmlResult = MKD::XmlView{data}.asStringView();
+    const auto xmlResult = MKD::XmlView{data.span()}.asStringView();
     ASSERT_TRUE(xmlResult.has_value()) << "Data contains invalid UTF-8 sequence: " << xmlResult.error();
 
     MKD::test::verbosePrint("Beginning of xml: {}\n", xmlResult.value().substr(0, 50));

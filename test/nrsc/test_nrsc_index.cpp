@@ -16,7 +16,7 @@ protected:
     void SetUp() override
     {
         const auto containerPath = MKD::macOS::getContainerPathByGroupIdentifier(MKD::MONOKAKIDO_GROUP_ID);
-        const auto dictionariesPath = containerPath / MKD::DICTIONARIES_PATH;
+        const auto dictionariesPath = containerPath / MKD::DICTIONARIES_SUBPATH;
 
         testDataPath_ = dictionariesPath / "KJT" / "Contents" / "KJT" / "img";
     }

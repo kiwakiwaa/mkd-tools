@@ -1,0 +1,32 @@
+{
+  "DSProductCategory" : "Japanese-Kanji",
+  "DSProductContents" : [
+    {
+      "DSContentDirectory" : "TESTDICT",
+      "DSContentEdition" : {
+        "en" : "1st edition",
+        "ja" : "第1版"
+      },
+      "DSContentIdentifier" : "Test.dict",
+      "DSContentLanguages" : [
+        "ja"
+      ],
+      "DSContentPublisher" : {
+        "en" : "kiwaa",
+        "ja" : "キーヴァ"
+      },
+      "DSContentTitle" : {
+        "ja" : "TESTDICT"
+      },
+      "DSContentVersion" : "0"
+    }
+  ],
+  "DSProductDisplayName" : {
+    "en" : "TESTDICT",
+    "ja" : "テスト辞書"
+  },
+  "DSProductTitle" : {
+    "ja" : "テスト辞書 第1版"
+  },
+  "DSProductVersion" : "1.0"
+}

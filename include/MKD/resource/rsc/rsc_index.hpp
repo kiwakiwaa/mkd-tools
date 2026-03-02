@@ -148,8 +148,12 @@ namespace MKD
 
         static Result<std::optional<std::vector<IdxRecord>>> loadIdxFile(const fs::path& directoryPath);
 
+        void buildSortedOrder();
+
         std::optional<std::vector<IdxRecord>> idxRecords_;
         std::vector<MapRecord> mapRecords_;
         uint32_t mapVersion_ = 0;
+
+        std::vector<size_t> sortedOrder_;
     };
 }

@@ -18,7 +18,7 @@ protected:
     void SetUp() override
     {
         const auto containerPath = macOS::getContainerPathByGroupIdentifier(MONOKAKIDO_GROUP_ID);
-        const auto dictionariesPath = containerPath / DICTIONARIES_PATH;
+        const auto dictionariesPath = containerPath / DICTIONARIES_SUBPATH;
 
         testHeadline_ = dictionariesPath / "KankenKJ2" / "Contents" / "KankenKJ2Data" / "headline" / "headline.headlinestore";
     }

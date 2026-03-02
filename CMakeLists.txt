@@ -8,7 +8,7 @@ if(POLICY CMP0069)
     cmake_policy(SET CMP0069 NEW)
 endif()
 
-option(MKD_BUILD_TESTS "Build tests" OFF)
+option(BUILD_TESTING "Build tests" ON)
 option(MKD_BUILD_CLI "Build command-line interface" ON)
 
 if(CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
@@ -107,7 +107,7 @@ endif()
 
 
 # Tests
-if (MKD_BUILD_TESTS)
+if (BUILD_TESTING)
     set(CMAKE_POLICY_DEFAULT_CMP0000 OLD)
     set(CMAKE_POLICY_DEFAULT_CMP0069 NEW)
     FetchContent_Declare(googletest

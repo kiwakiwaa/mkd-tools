@@ -209,7 +209,7 @@ namespace MKD
         if (isNewFormat)
             std::memcpy(&contentLength, data + 4, sizeof(uint32_t));
 
-        if (remaining < headerSize + contentLength)
+        if (remaining < contentLength)
             return std::unexpected("Insufficient data for item content");
 
         return OwnedSpan{

@@ -9,7 +9,7 @@
 #include "MKD/platform/macos/fs.hpp"
 #include "MKD/platform/macos/macos_dictionary_source.hpp"
 #include "MKD/resource/rsc/rsc_index.hpp"
-#include "MKD/resource/rsc/rsc_data_fileio.hpp"
+#include "MKD/resource/rsc/rsc_data.hpp"
 
 class RscIndexTest : public ::testing::Test
 {
@@ -17,7 +17,7 @@ protected:
     void SetUp() override
     {
         const auto containerPath = MKD::macOS::getContainerPathByGroupIdentifier(MKD::MONOKAKIDO_GROUP_ID);
-        const auto dictionariesPath = containerPath / MKD::DICTIONARIES_PATH;
+        const auto dictionariesPath = containerPath / MKD::DICTIONARIES_SUBPATH;
 
         testDataPath_ = dictionariesPath / "YDP" / "Contents" / "YDP" / "contents";
     }
@@ -60,8 +60,8 @@ TEST_F(RscIndexTest, GetRecordByIndex)
         MKD::test::verbosePrint("  [{:4}] ID: {:8} | {}\n", i, itemId, mapRecord);
 
         // Validate record fields are reasonable
-        EXPECT_GE(mapRecord.zOffset, 0u) << "chunkGlobalOffset should be non-negative";
-        EXPECT_GE(mapRecord.ioffset, 0u) << "itemOffset should be non-negative";
+        EXPECT_GE(mapRecord.chunkGlobalOffset, 0u) << "chunkGlobalOffset should be non-negative";
+        EXPECT_GE(mapRecord.itemOffset, 0u) << "itemOffset should be non-negative";
     }
 }
 
@@ -107,8 +107,8 @@ TEST_F(RscIndexTest, FindRecordById)
     MKD::test::verbosePrint("  [9] ID: {:8} | {}\n", testItemId, foundRecord);
 
     // Verify the found record matches
-    EXPECT_EQ(foundRecord.zOffset, expectedRecord.zOffset);
-    EXPECT_EQ(foundRecord.ioffset, expectedRecord.ioffset);
+    EXPECT_EQ(foundRecord.chunkGlobalOffset, expectedRecord.chunkGlobalOffset);
+    EXPECT_EQ(foundRecord.itemOffset, expectedRecord.itemOffset);
 }
 
 

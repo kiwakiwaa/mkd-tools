@@ -194,4 +194,47 @@ namespace MKD
 
         return digest;
     }
+
+
+    std::vector<uint8_t> RscCrypto::encrypt(const std::span<const uint8_t> plaintext, const std::array<uint8_t, 32>& key)
+    {
+        const auto outputLength = static_cast<uint32_t>(plaintext.size());
+
+        // pad to a multiple of 16 so every permutation block is full.
+        const size_t dataLength = plaintext.empty() ? 0 : ((plaintext.size() + 15) / 16) * 16;
+
+        const uint32_t checksum = outputLength ^ kChecksumXor;
+
+        std::vector<uint8_t> buf(dataLength, 0);
+        std::memcpy(buf.data(), plaintext.data(), plaintext.size());
+
+        if (dataLength > 0)
+            applyXorCipher(buf, key, checksum);
+
+        std::vector<uint8_t> permuted(dataLength);
+        if (dataLength > 0)
+            inversePermuteData(buf, permuted, checksum);
+
+        // append the checksum.
+        permuted.resize(dataLength + 4);
+        std::memcpy(permuted.data() + dataLength, &checksum, sizeof(uint32_t));
+
+        return permuted;
+    }
+
+
+    void RscCrypto::inversePermuteData(const std::span<const uint8_t> src, std::span<uint8_t> dst, const uint32_t checksum)
+    {
+        constexpr size_t BLOCK = 16, TABLE = 31;
+        uint32_t ti = (checksum ^ kChecksumXor) % TABLE;
+
+        for (size_t off = 0; off < src.size(); off += BLOCK)
+        {
+            const size_t bs = std::min(BLOCK, src.size() - off);
+            const auto& perm = kData2[ti];
+            for (size_t i = 0; i < bs; ++i)
+                dst[off + i] = src[off + perm[i]];
+            ti = (ti + 1) % TABLE;
+        }
+    }
 }

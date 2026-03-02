@@ -27,7 +27,7 @@ namespace MKD
         fontData.reserve(totalSize);
         for (const auto& [itemId, data] : rsc)
         {
-            fontData.append_range(data);
+            fontData.insert(fontData.end(), data.begin(), data.end());
         }
 
         return Font(fontName, fontData);

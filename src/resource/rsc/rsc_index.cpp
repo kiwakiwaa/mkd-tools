@@ -10,6 +10,7 @@
 #include <cassert>
 #include <format>
 #include <fstream>
+#include <numeric>
 
 namespace MKD
 {
@@ -147,6 +148,7 @@ namespace MKD
                        std::vector<MapRecord>&& mapRecords)
         : idxRecords_(std::move(idxRecords)), mapRecords_(std::move(mapRecords)), mapVersion_(mapVersion)
     {
+        buildSortedOrder();
     }
 
     RscIndex::Iterator::value_type RscIndex::Iterator::operator*() const
@@ -277,5 +279,19 @@ namespace MKD
             return std::unexpected(seq.error());
 
         return records;
+    }
+
+
+    void RscIndex::buildSortedOrder()
+    {
+        sortedOrder_.resize(mapRecords_.size());
+        std::iota(sortedOrder_.begin(), sortedOrder_.end(), size_t{0});
+        std::ranges::sort(sortedOrder_, [this](const size_t a, const size_t b) {
+            const auto& ra = mapRecords_[a];
+            const auto& rb = mapRecords_[b];
+            if (ra.chunkGlobalOffset != rb.chunkGlobalOffset)
+                return ra.chunkGlobalOffset < rb.chunkGlobalOffset;
+            return ra.chunkGlobalOffset < rb.chunkGlobalOffset;
+        });
     }
 }
