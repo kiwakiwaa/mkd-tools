@@ -116,7 +116,7 @@ namespace MKD
     }
 
 
-    Result<OwnedSpan> RscData::get(const MapRecord& record) const
+    Result<RetainedSpan> RscData::get(const MapRecord& record) const
     {
         if (record.itemOffset == 0xFFFFFFFF)
             return readDirectData(record.chunkGlobalOffset);
@@ -128,7 +128,7 @@ namespace MKD
     }
 
 
-    Result<OwnedSpan> RscData::readDirectData(size_t globalOffset) const
+    Result<RetainedSpan> RscData::readDirectData(size_t globalOffset) const
     {
         auto reader = openReaderAt(globalOffset);
         if (!reader) return std::unexpected(reader.error());
@@ -140,7 +140,7 @@ namespace MKD
         if (!seq) return std::unexpected(seq.error());
 
         auto owned = std::make_shared<const std::vector<uint8_t>>(std::move(bytes));
-        return OwnedSpan{std::move(owned)};
+        return RetainedSpan{std::move(owned)};
     }
 
 
@@ -199,7 +199,7 @@ namespace MKD
 
 
     // Shared between both backends
-    Result<OwnedSpan> RscData::parseItemFromChunk(
+    Result<RetainedSpan> RscData::parseItemFromChunk(
         std::shared_ptr<const std::vector<uint8_t>> chunk,
         const size_t offset)
     {
@@ -225,7 +225,7 @@ namespace MKD
         if (remaining < headerSize + contentLength)
             return std::unexpected("Insufficient data for item content");
 
-        return OwnedSpan{
+        return RetainedSpan{
             std::move(chunk),
             std::span(data + headerSize, contentLength)
         };

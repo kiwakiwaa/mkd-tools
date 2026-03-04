@@ -52,7 +52,7 @@ namespace MKD
     }
 
 
-    Result<OwnedSpan> NrscData::get(const NrscIndexRecord& record) const
+    Result<RetainedSpan> NrscData::get(const NrscIndexRecord& record) const
     {
         if (record.fileSequence >= files_.size())
             return std::unexpected(std::format(
@@ -98,17 +98,17 @@ namespace MKD
     }
 
 
-    Result<OwnedSpan> NrscData::readUncompressed(const NrscResourceFile& file, const NrscIndexRecord& record)
+    Result<RetainedSpan> NrscData::readUncompressed(const NrscResourceFile& file, const NrscIndexRecord& record)
     {
         auto bytes = readBytesFromFile(file.filePath, record.offset(), record.len());
         if (!bytes) return std::unexpected(bytes.error());
 
         auto owned = std::make_shared<const std::vector<uint8_t>>(std::move(*bytes));
-        return OwnedSpan{std::move(owned)};
+        return RetainedSpan{std::move(owned)};
     }
 
 
-    Result<OwnedSpan> NrscData::readCompressed(const NrscResourceFile& file, const NrscIndexRecord& record)
+    Result<RetainedSpan> NrscData::readCompressed(const NrscResourceFile& file, const NrscIndexRecord& record)
     {
         auto bytes = readBytesFromFile(file.filePath, record.offset(), record.len());
         if (!bytes) return std::unexpected(bytes.error());
@@ -119,6 +119,6 @@ namespace MKD
 
         auto owned = std::make_shared<const std::vector<uint8_t>>(decompressor.takeBuffer());
 
-        return OwnedSpan{std::move(owned)};
+        return RetainedSpan{std::move(owned)};
     }
 }
