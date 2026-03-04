@@ -11,6 +11,7 @@
 #include <unistd.h>
 #endif
 
+#include <cstring>
 #include <format>
 #include <fstream>
 

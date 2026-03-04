@@ -32,7 +32,7 @@ namespace MKD {
 
     std::expected<BinaryFileReader, std::string> BinaryFileReader::open(const std::filesystem::path& filePath)
     {
-        std::ifstream file(filePath);
+        std::ifstream file(filePath, std::ios::binary);
         if (!file)
             return std::unexpected(std::format("Failed to open file '{}'", filePath.string()));
 

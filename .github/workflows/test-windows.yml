@@ -14,19 +14,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure CMake (Debug)
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Debug -DMKD_BUILD_CLI=ON -DBUILD_TESTING=OFF
+      - name: Configure CMake
+        run: cmake -B build -DCMAKE_BUILD_TYPE=RELEASE -DMKD_BUILD_CLI=ON -DBUILD_TESTING=OFF
 
       - name: Build
-        run: cmake --build build --config Debug
+        run: cmake --build build --config RELEASE
 
-      - name: Run mkd with verbose output
+      - name: Run mkd
         if: always()
-        shell: cmd
         run: |
           mkdir output
           echo === Running mkd ===
-          .\build\cli\Debug\mkd.exe -d .\test\test-data -e TESTDICT -o output 2>&1
+          .\build\cli\RELEASE\mkd.exe -d .\test\test-data -e TESTDICT -o output
           echo === Exit code: %ERRORLEVEL% ===
 
       - name: List output files
