@@ -4,7 +4,7 @@
 
 #include "MKD/resource/common.hpp"
 #include "nrsc_data.hpp"
-#include "../zlib_decompressor.hpp"
+#include "../zlib_stream.hpp"
 
 #include <algorithm>
 #include <format>
@@ -90,7 +90,7 @@ namespace MKD
         auto compressed = file.mapping.slice(record.offset(), record.len());
         if (!compressed) return std::unexpected(compressed.error());
 
-        const ZlibDecompressor decompressor;
+        const ZlibStream decompressor;
         if (auto result = decompressor.decompress(*compressed, record.len()); !result)
             return std::unexpected(result.error());
 

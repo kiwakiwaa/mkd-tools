@@ -5,6 +5,7 @@
 #pragma once
 
 #include "MKD/result.hpp"
+#include <zlib.h>
 
 #include <cstdint>
 #include <expected>
@@ -14,20 +15,29 @@
 
 namespace MKD
 {
-    class ZlibDecompressor
+    class ZlibStream
     {
     public:
 
-        ZlibDecompressor() = default;
-        ~ZlibDecompressor() = default;
+        ZlibStream() = default;
+        ~ZlibStream() = default;
 
         // not copyable
-        ZlibDecompressor(const ZlibDecompressor&) = delete;
-        ZlibDecompressor& operator=(const ZlibDecompressor&) = delete;
+        ZlibStream(const ZlibStream&) = delete;
+        ZlibStream& operator=(const ZlibStream&) = delete;
 
         // movable
-        ZlibDecompressor(ZlibDecompressor&&) = default;
-        ZlibDecompressor& operator=(ZlibDecompressor&&) = default;
+        ZlibStream(ZlibStream&&) = default;
+        ZlibStream& operator=(ZlibStream&&) = default;
+
+
+        /**
+         * Compresses data using zlib compression
+         * @param data Span of uncompressed input data
+         * @param level Compression level (0-9, where 0 = no compression, 1 = fastest, 9 = best compression)
+         * @return Span pointing to compressed data in internal buffer or error string
+         */
+        [[nodiscard]] Result<std::span<const uint8_t>> compress(std::span<const uint8_t> data, int level = Z_DEFAULT_COMPRESSION) const;
 
         /**
          * Decompresses zlib-compressed data into the internal buffer
@@ -51,6 +61,6 @@ namespace MKD
         static bool isZlibCompressed(std::span<const uint8_t> data);
 
     private:
-        mutable std::vector<uint8_t> decompressBuffer_;
+        mutable std::vector<uint8_t> buffer_;
     };
 }

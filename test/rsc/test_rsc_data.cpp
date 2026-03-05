@@ -10,6 +10,8 @@
 #include "../../src/platform/macos/fs.hpp"
 #include "MKD/platform/macos/macos_dictionary_source.hpp"
 #include "../../include/MKD/resource/rsc.hpp"
+#include "../../src/resource/rsc/rsc_data.hpp"
+#include "../../src/resource/rsc/rsc_index.hpp"
 #include "MKD/resource/xml_view.hpp"
 
 #include <pugixml.h>

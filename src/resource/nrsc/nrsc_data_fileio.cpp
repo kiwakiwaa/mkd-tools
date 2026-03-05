@@ -4,7 +4,7 @@
 
 #include "MKD/resource/common.hpp"
 #include "nrsc_data.hpp"
-#include "../zlib_decompressor.hpp"
+#include "../zlib_stream.hpp"
 
 #include <algorithm>
 #include <format>
@@ -113,11 +113,11 @@ namespace MKD
         auto bytes = readBytesFromFile(file.filePath, record.offset(), record.len());
         if (!bytes) return std::unexpected(bytes.error());
 
-        const ZlibDecompressor decompressor;
-        auto result = decompressor.decompress(*bytes, bytes->size());
+        const ZlibStream stream;
+        auto result = stream.decompress(*bytes, bytes->size());
         if (!result) return std::unexpected(result.error());
 
-        auto owned = std::make_shared<const std::vector<uint8_t>>(decompressor.takeBuffer());
+        auto owned = std::make_shared<const std::vector<uint8_t>>(stream.takeBuffer());
 
         return RetainedSpan{std::move(owned)};
     }

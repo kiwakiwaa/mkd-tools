@@ -15,7 +15,7 @@ TEST(RscCrypto, TestRoundTrip)
 {
     const std::string dictId = "Test.dict";
 
-    const std::filesystem::path xmlPath = std::filesystem::path(__FILE__).parent_path() / "test_entry.xml";
+    const std::filesystem::path xmlPath = std::filesystem::path(__FILE__).parent_path().parent_path() / "test_entry.xml";
     test::verbosePrint("Reading XML from: {}\n", xmlPath.string());
 
     std::ifstream xmlFile(xmlPath);
