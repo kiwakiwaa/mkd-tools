@@ -19,24 +19,15 @@ namespace MKD::detail
     }
 
 
-    void BinaryBuffer::writeStringNul(std::string_view str)
+    void BinaryBuffer::writeByte(const uint8_t value)
     {
-        const auto* bytes = reinterpret_cast<const uint8_t*>(str.data());
-        buffer_.insert(buffer_.end(), bytes, bytes + str.size());
-        buffer_.push_back(0);
+        buffer_.push_back(value);
     }
 
 
     void BinaryBuffer::writePadding(const size_t count)
     {
         buffer_.resize(buffer_.size() + count, 0);
-    }
-
-
-    void BinaryBuffer::alignTo(const size_t alignment)
-    {
-        if (const size_t remainder = buffer_.size() % alignment; remainder != 0)
-            writePadding(alignment - remainder);
     }
 
 

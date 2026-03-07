@@ -8,18 +8,11 @@
 #include <filesystem>
 #include <optional>
 #include <string_view>
-#include <span>
 
 namespace fs = std::filesystem;
 
 namespace MKD
 {
-    enum class CompressionFormat : uint16_t
-    {
-        Uncompressed = 0,
-        Zlib = 1
-    };
-
     // Struct that provides automatic endiannessconversion
     template<typename Derived>
     struct BinaryStruct

@@ -37,33 +37,11 @@ namespace MKD::detail
         // write raw bytes
         void writeBytes(std::span<const uint8_t> data);
 
-        // write a null-terminated utf-8 string including the terminator
-        void writeStringNul(std::string_view str);
+        // write a byte
+        void writeByte(uint8_t value);
 
         // write N zero bytes
         void writePadding(size_t count);
-
-        // Overwrite bytes at a previous position
-        template<std::integral T>
-        void patchLE(const size_t offset, T value)
-        {
-            if constexpr (std::endian::native == std::endian::big)
-                value = std::byteswap(value);
-
-            std::memcpy(buffer_.data() + offset, &value, sizeof(T));
-        }
-
-        // Reserve a slot for a value to be patched later, returns the offset
-        template<std::integral T>
-        size_t reserveSlot()
-        {
-            const size_t offset = buffer_.size();
-            buffer_.resize(buffer_.size() + sizeof(T), 0);
-            return offset;
-        }
-
-        // Align the write position to the given boundary with zero padding
-        void alignTo(size_t alignment);
 
         // Current write position
         [[nodiscard]] size_t position() const noexcept;

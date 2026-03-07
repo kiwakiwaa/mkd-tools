@@ -25,7 +25,7 @@ namespace MKD
         uint32_t fileOffset;        // Byte offset within the target .nrsc file
         uint32_t length;            // size of the resource data
 
-        [[nodiscard]] CompressionFormat compressionFormat() const;
+        [[nodiscard]] bool isCompressed() const noexcept;
         [[nodiscard]] size_t fileSeq() const noexcept;
         [[nodiscard]] size_t idOffset() const noexcept;
         [[nodiscard]] uint64_t offset() const noexcept;
@@ -57,7 +57,7 @@ struct std::formatter<MKD::NrscIndexRecord>
 
     static auto format(const MKD::NrscIndexRecord& record, std::format_context& ctx)
     {
-        const char compression = record.compressionFormat() == MKD::CompressionFormat::Uncompressed ? 'U' : 'Z';
+        const char compression = record.isCompressed() ? 'Z' : 'U';
         return std::format_to(ctx.out(),
             "{}.nrsc@{} ({}) ({})",
             record.fileSequence,

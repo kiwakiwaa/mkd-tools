@@ -61,15 +61,10 @@ namespace MKD
 
         auto& file = files_[record.fileSequence];
 
-        switch (record.compressionFormat())
-        {
-            case CompressionFormat::Uncompressed:
-                return readUncompressed(file, record);
-            case CompressionFormat::Zlib:
-                return readCompressed(file, record);
-            default:
-                return std::unexpected("Unknown compression format");
-        }
+        if (record.isCompressed())
+            return readCompressed(file, record);
+
+        return readUncompressed(file, record);
     }
 
 

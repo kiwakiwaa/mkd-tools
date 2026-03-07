@@ -8,20 +8,11 @@
 
 namespace MKD
 {
-    CompressionFormat NrscIndexRecord::compressionFormat() const
+    bool NrscIndexRecord::isCompressed() const noexcept
     {
-        uint16_t fmt = format;
-        if constexpr (std::endian::native == std::endian::big)
-            fmt = std::byteswap(fmt);
-
-        switch (fmt)
-        {
-            case 0: return CompressionFormat::Uncompressed;
-            case 1: return CompressionFormat::Zlib;
-            default:
-                throw std::runtime_error(std::format("Invalid compression format: {}", fmt));
-        }
+        return format == 1;;
     }
+
 
     size_t NrscIndexRecord::fileSeq() const noexcept
     {
