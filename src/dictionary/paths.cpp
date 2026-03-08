@@ -4,6 +4,7 @@
 
 #include "MKD/dictionary/paths.hpp"
 
+#include <array>
 #include <span>
 
 using namespace std::literals::string_view_literals;
