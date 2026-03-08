@@ -8,7 +8,7 @@ if(POLICY CMP0069)
     cmake_policy(SET CMP0069 NEW)
 endif()
 
-option(BUILD_TESTING "Build tests" ON)
+option(BUILD_TESTING "Build tests" OFF)
 option(MKD_BUILD_CLI "Build command-line interface" ON)
 
 # release optimisations
