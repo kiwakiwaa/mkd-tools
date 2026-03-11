@@ -6,7 +6,7 @@
 
 #include "MKD/result.hpp"
 #include "MKD/resource/retained_span.hpp"
-#include "../../platform/read_sequence.hpp"
+#include "platform/read_sequence.hpp"
 #include "resource_store_index.hpp"
 #include "resource_store_crypto.hpp"
 

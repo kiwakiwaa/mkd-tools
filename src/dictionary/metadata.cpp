@@ -2,8 +2,8 @@
 // kiwakiwaaにより 2026/01/14 に作成されました。
 //
 
-#include "../platform/binary_file_reader.hpp"
 #include "MKD/dictionary/metadata.hpp"
+#include "platform/binary_file_reader.hpp"
 
 namespace MKD
 {

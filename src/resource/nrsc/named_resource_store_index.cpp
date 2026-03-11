@@ -2,7 +2,7 @@
 // kiwakiwaaにより 2026/01/16 に作成されました。
 //
 
-#include "../../platform/read_sequence.hpp"
+#include "platform/read_sequence.hpp"
 #include "named_resource_store_index.hpp"
 
 #include <algorithm>

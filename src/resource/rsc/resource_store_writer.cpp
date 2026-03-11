@@ -3,8 +3,8 @@
 //
 
 #include "resource_store_writer.hpp"
-#include "../detail/binary_buffer.hpp"
-#include "../detail/zlib_stream.hpp"
+#include "resource/detail/binary_buffer.hpp"
+#include "resource/detail/zlib_stream.hpp"
 
 #include <algorithm>
 

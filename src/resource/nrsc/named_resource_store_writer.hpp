@@ -5,7 +5,7 @@
 #pragma once
 
 #include "MKD/result.hpp"
-#include "../detail/sequential_blob_writer.hpp"
+#include "resource/detail/sequential_blob_writer.hpp"
 
 #include <string>
 #include <vector>

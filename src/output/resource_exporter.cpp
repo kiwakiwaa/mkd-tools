@@ -4,7 +4,7 @@
 
 #include "MKD/output/resource_exporter.hpp"
 #include "export_accumulator.hpp"
-#include "../platform/parallel.hpp"
+#include "platform/parallel.hpp"
 
 #include <format>
 #include <pugixml.h>

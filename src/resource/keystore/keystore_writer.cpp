@@ -3,8 +3,8 @@
 //
 #include "keystore_writer.hpp"
 #include "keystore_compare.hpp"
-#include "../detail/binary_buffer.hpp"
-#include "../detail/unicode/unicode_utils.hpp"
+#include "resource/detail/binary_buffer.hpp"
+#include "resource/detail/unicode/unicode_utils.hpp"
 
 #include <algorithm>
 #include <format>

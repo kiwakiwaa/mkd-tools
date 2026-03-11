@@ -3,7 +3,7 @@
 //
 
 #include "keystore_compare.hpp"
-#include "../detail/unicode/unicode_case_map.hpp"
+#include "resource/detail/unicode/unicode_case_map.hpp"
 
 #include "utf8.h"
 

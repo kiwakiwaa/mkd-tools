@@ -4,7 +4,6 @@
 
 #pragma once
 
-
 #include "MKD/result.hpp"
 #include "MKD/resource/keystore.hpp"
 

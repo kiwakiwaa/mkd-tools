@@ -3,7 +3,7 @@
 //
 
 #include "MKD/resource/headline_store.hpp"
-#include "../../platform/read_sequence.hpp"
+#include "platform/read_sequence.hpp"
 
 #include <utf8.h>
 

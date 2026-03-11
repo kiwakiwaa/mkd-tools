@@ -4,7 +4,7 @@
 
 #include "named_resource_store_writer.hpp"
 #include "named_resource_store_index.hpp"
-#include "../detail/zlib_stream.hpp"
+#include "resource/detail/zlib_stream.hpp"
 
 #include <algorithm>
 #include <numeric>

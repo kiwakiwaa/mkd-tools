@@ -3,7 +3,7 @@
 //
 
 #include "MKD/resource/keystore.hpp"
-#include "../../platform/binary_file_reader.hpp"
+#include "platform/binary_file_reader.hpp"
 
 #include <array>
 #include <bit>

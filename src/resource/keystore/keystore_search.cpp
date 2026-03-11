@@ -4,7 +4,6 @@
 
 #include "keystore_search.hpp"
 #include "keystore_compare.hpp"
-#include "../detail/unicode/unicode_case_map.hpp"
 
 #include <algorithm>
 #include "utf8.h"
@@ -56,7 +55,7 @@ namespace MKD
 
             while (rangeSize > 0)
             {
-                const size_t mid = lowerBound + (rangeSize >> 1);
+                const size_t mid = lowerBound + (rangeSize / 2);
 
                 // get the entry key at this pos
                 // todo: maybe not return all decoded pages here since we only need the key for comparison
@@ -66,12 +65,12 @@ namespace MKD
 
                 if (const int cmp = detail::keystore::compare(entry->key, searchKey, mode); cmp >= 0)
                 {
-                    rangeSize >>= 1;
+                    rangeSize = rangeSize / 2;
                 }
                 else
                 {
                     lowerBound = mid + 1;
-                    rangeSize -= (rangeSize >> 1) + 1;
+                    rangeSize = rangeSize - (rangeSize / 2) - 1;
                 }
             }
 

@@ -2,7 +2,7 @@
 // kiwakiwaaにより 2026/02/25 に作成されました。
 //
 
-#include "../parallel.hpp"
+#include "platform/parallel.hpp"
 
 #import <dispatch/dispatch.h>
 

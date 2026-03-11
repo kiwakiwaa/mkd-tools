@@ -3,7 +3,7 @@
 //
 
 #include "resource_store_contents.hpp"
-#include "../detail/zlib_stream.hpp"
+#include "resource/detail/zlib_stream.hpp"
 
 #include <algorithm>
 #include <format>

@@ -3,10 +3,10 @@
 //
 
 #include "MKD/platform/macos/macos_dictionary_source.hpp"
-#include "scoped_security_access.hpp"
 #include "bookmark_store.hpp"
 #include "folder_prompt.hpp"
 #include "fs.hpp"
+#include "scoped_security_access.hpp"
 
 #include <unistd.h>
 #include <sys/fcntl.h>

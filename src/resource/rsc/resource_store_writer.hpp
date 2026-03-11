@@ -7,7 +7,7 @@
 #include "MKD/result.hpp"
 #include "resource_store_index.hpp"
 #include "resource_store_contents.hpp"
-#include "../detail/sequential_blob_writer.hpp"
+#include "resource/detail/sequential_blob_writer.hpp"
 
 #include <cstdint>
 #include <optional>
