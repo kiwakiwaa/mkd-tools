@@ -41,41 +41,18 @@ namespace MKD
             std::unreachable();
         }
 
-
         size_t indexLowerBound(const Keystore& keystore,
                                const KeystoreIndex indexType,
                                std::string_view searchKey,
                                const keystore::CompareMode mode)
         {
-            const size_t count = keystore.indexSize(indexType);
-            if (count == 0 || searchKey.empty())
-                return 0;
+            const auto range = std::ranges::subrange(keystore.begin(indexType), keystore.end(indexType));
+            const auto it = std::lower_bound(range.begin(), range.end(), searchKey,
+                                             [mode](const KeystoreEntry& entry, std::string_view value) {
+                                                 return detail::keystore::compare(entry.key, value, mode) < 0;
+                                             });
 
-            size_t lowerBound = 0;
-            size_t rangeSize = count;
-
-            while (rangeSize > 0)
-            {
-                const size_t mid = lowerBound + (rangeSize / 2);
-
-                // get the entry key at this pos
-                // todo: maybe not return all decoded pages here since we only need the key for comparison
-                const auto entry = keystore.getByIndex(indexType, mid);
-                if (!entry)
-                    break;
-
-                if (const int cmp = detail::keystore::compare(entry->key, searchKey, mode); cmp >= 0)
-                {
-                    rangeSize = rangeSize / 2;
-                }
-                else
-                {
-                    lowerBound = mid + 1;
-                    rangeSize = rangeSize - (rangeSize / 2) - 1;
-                }
-            }
-
-            return lowerBound;
+            return static_cast<size_t>(std::ranges::distance(range.begin(), it));
         }
 
 
@@ -153,14 +130,14 @@ namespace MKD
     }
 
 
-    Result<std::vector<KeystoreLookupResult>> keystoreSearchResults(const Keystore& keystore,
+    Result<std::vector<KeystoreSearchResult>> keystoreSearchResults(const Keystore& keystore,
                                                                     std::string_view query,
                                                                     const SearchMode mode)
     {
         auto range = keystoreSearch(keystore, query, mode);
         if (!range) return std::unexpected(range.error());
 
-        std::vector<KeystoreLookupResult> results;
+        std::vector<KeystoreSearchResult> results;
         results.reserve(range->count());
 
         std::u32string queryNorm;
@@ -169,7 +146,7 @@ namespace MKD
 
         for (size_t i = range->begin; i < range->end; i++)
         {
-            auto entry = keystore.getByIndex(range->indexType, i);
+            auto entry = keystore.entryAt(range->indexType, i);
             if (!entry) continue; // shouldnt happen
 
             if (mode == SearchMode::Exact)
@@ -179,7 +156,15 @@ namespace MKD
                     continue;
             }
 
-            results.push_back(std::move(*entry));
+            auto entryIds = keystore.entryIdsAt(range->indexType, i);
+            if (!entryIds)
+                continue;
+
+            results.push_back({
+                .key = entry->key,
+                .index = entry->index,
+                .entryIds = std::move(*entryIds),
+            });
         }
 
         return results;

@@ -23,7 +23,7 @@ protected:
         keystorePath_ = dictionariesPath / "KJT" / "Contents" / "KJT" / "key" / "jyukugo.keystore";
 
         // Load the keystore
-        auto keystoreResult = MKD::Keystore::load(keystorePath_, "");
+        auto keystoreResult = MKD::Keystore::open(keystorePath_, "");
         ASSERT_TRUE(keystoreResult.has_value())
             << "Failed to load keystore: " << keystoreResult.error();
 
@@ -134,10 +134,9 @@ TEST_F(KeystoreSearchTest, SearchRangePrefixReturnsValidIndices)
     // Verify that entries in the range actually have the prefix
     for (size_t i = range->begin; i < range->end && i < range->begin + 10; ++i)
     {
-        auto entry = keystore_->getByIndex(range->indexType, i);
+        auto entry = keystore_->entryAt(range->indexType, i);
         ASSERT_TRUE(entry.has_value());
-        EXPECT_TRUE(entry->key.substr(0, 3) == "愛")
-            << "Entry at index " << i << " has key '" << entry->key << "' without prefix";
+        EXPECT_TRUE(entry->key.substr(0, 3) == "愛") << "Entry at index " << i << " has key '" << entry->key << "' without prefix";
     }
 }
 
@@ -182,12 +181,12 @@ TEST_F(KeystoreSearchTest, UpperBoundWorksCorrectly)
 
     if (range->begin < range->end)
     {
-        auto lastEntry = keystore_->getByIndex(range->indexType, range->end - 1);
+        auto lastEntry = keystore_->entryAt(range->indexType, range->end - 1);
         ASSERT_TRUE(lastEntry.has_value());
 
         if (range->end < keystore_->indexSize(range->indexType))
         {
-            auto nextEntry = keystore_->getByIndex(range->indexType, range->end);
+            auto nextEntry = keystore_->entryAt(range->indexType, range->end);
             ASSERT_TRUE(nextEntry.has_value());
 
             // The next entry should not have the prefix
@@ -204,11 +203,11 @@ TEST_F(KeystoreSearchTest, RetrievedEntriesHaveValidPageReferences)
     if (!results->empty())
     {
         const auto& entry = results->front();
-        EXPECT_FALSE(entry.pages.empty()) << "Entry should have at least one page reference";
+        EXPECT_FALSE(entry.entryIds.empty()) << "Entry should have at least one page reference";
 
-        for (const auto& ref : entry.pages)
+        for (const auto& [pageId, itemId] : entry.entryIds)
         {
-            MKD::test::verbosePrint("Page: {}, Item: {}\n", ref.page, ref.item);
+            MKD::test::verbosePrint("Page: {}, Item: {}\n", pageId, itemId);
         }
     }
 }

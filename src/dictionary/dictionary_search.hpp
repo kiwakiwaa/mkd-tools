@@ -5,7 +5,7 @@
 #pragma once
 
 #include "MKD/result.hpp"
-#include "MKD/resource/page_reference.hpp"
+#include "MKD/resource/entry_id.hpp"
 #include "resource/keystore/keystore_search.hpp"
 
 #include <memory>
@@ -47,7 +47,7 @@ namespace MKD
 
     struct SearchResult
     {
-        std::vector<PageReference> entries;
+        std::vector<EntryId> entries;
 
         //   0 = direct match
         //   4 = scope fallback

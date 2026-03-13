@@ -29,13 +29,13 @@ namespace MKD
          * Export a keystore's mappings to TSV files.
          *
          * Forward format (one line per key):
-         *   <key>\t<page>-<item>[,<page>-<item>...]
+         *   <key>\t<page>-<entry>[,<page>-<entry>...]
          *
-         * Inverse format (one line per page reference):
-         *   <page>-<item>\t<key>[,<key>,...]
+         * Inverse format (one line per entry id):
+         *   <page>-<entry>\t<key>[,<key>,...]
          *
          * The inverse map is built with a hash map over packed
-         * page references, then sorted by page ID
+         * entry ids, then sorted by page ID
          */
         static Result<ExportResult> exportKeystore(const Keystore& keystore, const ExportOptions& options);
 
@@ -43,7 +43,7 @@ namespace MKD
         struct ForwardEntry
         {
             std::string_view key;
-            std::vector<PageReference> pages;
+            std::vector<EntryId> entryIds;
         };
 
         static Result<std::vector<ForwardEntry>> collectEntries(const Keystore& keystore, KeystoreIndex index);

@@ -6,10 +6,11 @@
 
 #include "MKD/result.hpp"
 #include "MKD/resource/common.hpp"
-#include "MKD/resource/page_reference.hpp"
-#include "MKD/resource/keystore_lookup_result.hpp"
+#include "MKD/resource/entry_id.hpp"
 
 #include <expected>
+#include <iterator>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -67,10 +68,10 @@ namespace MKD
      * │ key               (variable) null-terminated UTF-8      │
      * └─────────────────────────────────────────────────────────┘
      *
-     * Page references:
+     * Entry ids:
      * ┌─────────────────────────────────────────────────────────┐
-     * │ Variable-length encoded page references                 │
-     * │ (decoded by decodePageReferences)                       │
+     * │ Variable-length encoded entry ids                       │
+     * │ (decoded by decodeEntryIds)                             │
      * └─────────────────────────────────────────────────────────┘
      *
      * INDEX SECTION
@@ -107,152 +108,109 @@ namespace MKD
      * CONVERSION TABLE (optional, v2 only)
      * ------------------------------------
      * Located at convTableOffset. Used by specific dictionaries
-     * (KNEJ, KNJE, maybe others too...) to remap page references after lookup.
+     * (KNEJ, KNJE, maybe others too...) to remap entry ids after lookup.
      */
 
     constexpr uint32_t KEYSTORE_V1 = 0x10000;
     constexpr uint32_t KEYSTORE_V2 = 0x20000;
-    constexpr uint32_t INDEX_MAGIC = 0x04;
 
     enum class KeystoreIndex : size_t
     {
         Length = 0, // Index A — sorted by key length
         Prefix = 1, // Index B — sorted by key (prefix search)
         Suffix = 2, // Index C — sorted by key suffix
-        Other = 3, // Index D — conversion table / other
+        Other  = 3, // Index D — conversion table / other
     };
 
-    struct KeystoreHeader : BinaryStruct<KeystoreHeader>
+    struct KeystoreEntry
     {
-        uint32_t version; // 0x10000 or 0x20000
-        uint32_t magic1; // Must be 0
-        uint32_t wordsOffset; // Offset to words section
-        uint32_t indexOffset; // Offset to index section
-        uint32_t conversionTableOffset; // Offset to conversion table (or 0)
-        uint32_t magic5; // Must be 0
-        uint32_t magic6; // Must be 0
-        uint32_t magic7; // Must be 0
+        std::string_view key;
+        size_t index = 0;
 
-        [[nodiscard]] size_t headerSize() const noexcept;
-
-        void swapEndianness() noexcept;
+        [[nodiscard]] bool empty() const noexcept { return key.empty(); }
     };
-
-    struct IndexHeader : BinaryStruct<IndexHeader>
-    {
-        uint32_t magic; // Must be 0x04
-        uint32_t indexAOffset;
-        uint32_t indexBOffset;
-        uint32_t indexCOffset;
-        uint32_t indexDOffset;
-
-        void swapEndianness() noexcept;
-    };
-
-    struct ConversionEntry
-    {
-        uint32_t page;
-        uint16_t item;
-        uint16_t padding;
-    };
-
-    static_assert(sizeof(ConversionEntry) == 8);
 
     class Keystore
     {
     public:
+        class Iterator;
+
+        static Result<Keystore> open(const std::filesystem::path& path, std::string dictId);
+
         ~Keystore();
         Keystore(Keystore&&) noexcept;
         Keystore& operator=(Keystore&&) noexcept;
-
-        /**
-         * Load a keystore file from disk.
-         *
-         * The entire file is read into memory. Index arrays and the optional
-         * conversion table are parsed eagerly.
-         *
-         * @param path    Path to the .keystore file
-         * @param dictId  Dictionary identifier (e.g. "KNEJ"). Used to decide
-         *                whether automatic key-ID conversion is applied.
-         * @return Loaded Keystore, or an error string
-         */
-        static Result<Keystore> load(const fs::path& path, const std::string& dictId);
-
+        Keystore(const Keystore&) = delete;
+        Keystore& operator=(const Keystore&) = delete;
 
         /**
          * Look up an entry by its position within an index.
          *
-         * For dictionaries that require it (KNEJ, KNJE), page references are
-         * automatically converted via the embedded conversion table.
+         * For dictionaries that require it (KNEJ, KNJE), entry ids are
+         * automatically converted via the embedded conversion table
          *
-         * @param indexType  Which index to query
-         * @param index      Position within that index
-         * @return Lookup result with key and page references, or an error
+         * @param type Which index to query
+         * @param index Position within that index
+         * @return Lookup result with key and entry ids, or an error
          */
-        [[nodiscard]] Result<KeystoreLookupResult> getByIndex(KeystoreIndex indexType, size_t index) const;
+        [[nodiscard]] Result<KeystoreEntry> entryAt(KeystoreIndex type, size_t index) const;
 
         /**
-         * @return Number of entries in the given index (0 if the index doesn't exist).
+         * Lookup key only, without decoding entry ids.
+         *
+         * @param type Which index to query
+         * @param index Position within that index
+         * @return Lookup key with its index, or an error
          */
-        [[nodiscard]] size_t indexSize(KeystoreIndex indexType) const noexcept;
+        [[nodiscard]] Result<std::string_view> keyAt(KeystoreIndex type, size_t index) const;
 
+        /**
+         * Decode entry ids for a previously located keystore position
+         *
+         * @param type Which index to query
+         * @param index Position within that index
+         * @return Entry ids for a keystore position, or an error
+         */
+        [[nodiscard]] Result<std::vector<EntryId>> entryIdsAt(KeystoreIndex type, size_t index) const;
 
-        [[nodiscard]] std::string_view filename() const;
+        /// Number of entries in the given index (0 if absent).
+        [[nodiscard]] size_t indexSize(KeystoreIndex type) const noexcept;
+
+        [[nodiscard]] std::string_view filename() const noexcept;
+
+        [[nodiscard]] Iterator begin(KeystoreIndex type) const noexcept;
+        [[nodiscard]] Iterator end(KeystoreIndex type) const noexcept;
 
     private:
-        [[nodiscard]] const std::vector<uint32_t>* getIndexArray(KeystoreIndex type) const noexcept;
-
-        /**
-         * Parse a word entry from the words section.
-         * Layout: uint32_le pages_offset | 0x00 | null-terminated string
-         */
-        struct WordEntry
-        {
-            std::string_view key;
-            size_t pagesOffset; // words-section-relative
-        };
-
-        [[nodiscard]] Result<WordEntry> parseWordEntry(uint32_t wordOffset) const;
-
-        /**
-         * Decode page references at the given words-section-relative offset.
-         */
-        [[nodiscard]] Result<std::vector<PageReference>> decodePages(size_t pagesOffset) const;
-
-        /**
-         * @return true if this dictionary needs automatic key-ID conversion.
-         */
-        [[nodiscard]] bool needsConversion() const noexcept;
-
-        /**
-         * Apply the conversion table in-place.
-         */
-        void applyConversion(std::vector<PageReference>& refs) const noexcept;
-
-        static Result<IndexHeader> readIndexHeader(std::span<const uint8_t> data);
-
-        struct IndexArrays
-        {
-            std::vector<uint32_t> length, prefix, suffix, other;
-        };
-
-        static Result<IndexArrays> readAllIndices(std::span<const uint8_t> data, const IndexHeader& header);
-
-        /**
-         * Read a single index array.
-         * Format: uint32_le count | uint32_le[count] offsets
-         *
-         * @param data   Buffer starting at the index section
-         * @param start  Byte offset of this index within `data`
-         * @param end    Byte offset of the next index (or section end)
-         * @return Offset array (count element removed), or error
-         */
-        static Result<std::vector<uint32_t>> readSingleIndex(std::span<const uint8_t> data, uint32_t start, uint32_t end);
-
-        static Result<std::span<const ConversionEntry>> parseConversionTable(std::span<const uint8_t> fileData, size_t offset, size_t fileSize);
-
         struct Impl;
         std::unique_ptr<Impl> impl_;
         explicit Keystore(std::unique_ptr<Impl> impl) noexcept;
     };
+
+    class Keystore::Iterator
+    {
+    public:
+        using iterator_category = std::forward_iterator_tag;
+        using value_type = KeystoreEntry;
+        using difference_type = std::ptrdiff_t;
+
+        Iterator() = default;
+
+        [[nodiscard]] value_type operator*() const;
+        Iterator& operator++();
+        Iterator operator++(int);
+
+        [[nodiscard]] bool operator==(const Iterator& other) const noexcept = default;
+
+    private:
+        friend class Keystore;
+
+        const Keystore* keystore_ = nullptr;
+        KeystoreIndex type_ = KeystoreIndex::Prefix;
+        size_t index_ = 0;
+
+        Iterator(const Keystore* keystore, KeystoreIndex type, size_t index) noexcept;
+    };
+
+    static_assert(std::forward_iterator<Keystore::Iterator>);
 }

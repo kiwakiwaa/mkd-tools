@@ -4,7 +4,6 @@
 #include "keystore_writer.hpp"
 #include "keystore_compare.hpp"
 #include "resource/detail/binary_buffer.hpp"
-#include "resource/detail/unicode/unicode_utils.hpp"
 
 #include <algorithm>
 #include <format>
@@ -16,9 +15,9 @@ namespace MKD
     namespace detail
     {
         /**
-         * Merge page references into an existing key's list, deduplicating.
+         * Merge entry ids into an existing key's list, deduplicating.
          */
-        void mergePages(std::vector<PageReference>& existing, const std::span<const PageReference> incoming)
+        void mergePages(std::vector<EntryId>& existing, const std::span<const EntryId> incoming)
         {
             for (const auto& ref : incoming)
             {
@@ -35,13 +34,13 @@ namespace MKD
     }
 
 
-    Result<void> KeystoreWriter::add(std::string_view key, std::vector<PageReference> pages)
+    Result<void> KeystoreWriter::add(std::string_view key, std::vector<EntryId> pages)
     {
         if (key.empty())
             return std::unexpected("Search key must not be empty");
 
         if (pages.empty())
-            return std::unexpected("Page references must not be empty");
+            return std::unexpected("Entry ids must not be empty");
 
         auto& existing = entries_[std::string(key)];
         detail::mergePages(existing, pages);
@@ -49,7 +48,7 @@ namespace MKD
     }
 
 
-    Result<void> KeystoreWriter::addPage(PageReference page, const std::span<const std::string_view> keys)
+    Result<void> KeystoreWriter::addPage(EntryId page, const std::span<const std::string_view> keys)
     {
         if (keys.empty())
             return std::unexpected("Keys span must not be empty");
@@ -119,7 +118,7 @@ namespace MKD
 
         {
             detail::BinaryBuffer indexHeader(indexHeaderSize);
-            indexHeader.writeLE(INDEX_MAGIC);
+            indexHeader.writeLE(0x04);
             indexHeader.writeLE(static_cast<uint32_t>(indexAOffset));
             indexHeader.writeLE(static_cast<uint32_t>(indexBOffset));
             indexHeader.writeLE(static_cast<uint32_t>(indexCOffset));
@@ -162,17 +161,14 @@ namespace MKD
         {
             auto sorted = pages;
             std::ranges::sort(sorted);
-            result.push_back({.key = key, .pages = std::move(sorted)});
+            result.push_back({.key = key, .entryIds = std::move(sorted)});
         }
 
-        std::ranges::sort(result, [](const Entry& a, const Entry& b) {
-            return detail::unicode::toUtf32(a.key) < detail::unicode::toUtf32(b.key);
-        });
         return result;
     }
 
 
-    std::vector<uint8_t> KeystoreWriter::encodePages(const std::vector<PageReference>& pages)
+    std::vector<uint8_t> KeystoreWriter::encodePages(const std::vector<EntryId>& pages)
     {
         detail::BinaryBuffer buf;
 
@@ -257,10 +253,10 @@ namespace MKD
 
     Result<KeystoreWriter::WordsSection> KeystoreWriter::buildWordsSection(const std::vector<Entry>& entries)
     {
-        std::vector<std::vector<uint8_t> > encodedPages;
+        std::vector<std::vector<uint8_t>> encodedPages;
         encodedPages.reserve(entries.size());
-        for (const auto& [key, pages] : entries)
-            encodedPages.push_back(encodePages(pages));
+        for (const auto& [key, entryIds] : entries)
+            encodedPages.push_back(encodePages(entryIds));
 
         // calculate offsets first
         WordsSection result;
@@ -317,11 +313,14 @@ namespace MKD
                                                                  const WordsSection& words)
     {
         const size_t n = entries.size();
+        IndexArrays result;
+
+        result.length.reserve(n);
+        result.prefix.reserve(n);
+        result.suffix.reserve(n);
 
         std::vector<size_t> indices(n);
         std::iota(indices.begin(), indices.end(), 0);
-
-        IndexArrays result;
 
         auto toOffsets = [&](const std::vector<size_t>& order) {
             std::vector<uint32_t> offsets;
@@ -331,20 +330,11 @@ namespace MKD
             return offsets;
         };
 
-        std::vector<std::u32string> normalized(n);
-        for (size_t i = 0; i < n; ++i)
-            normalized[i] = detail::keystore::normalizeKeyToUTF32(entries[i].key, false);
-
         // Index A sorted by codepoint count, then case-folded comparison
         {
             auto order = indices;
             std::ranges::sort(order, [&](const size_t a, const size_t b) {
-                const size_t lenA = detail::unicode::utf8CodepointCount(entries[a].key);
-                const size_t lenB = detail::unicode::utf8CodepointCount(entries[b].key);
-                if (lenA != lenB)
-                    return lenA < lenB;
-
-                return normalized[a] < normalized[b]; // same case-folded, hyphen/space-skipping comparison
+                return detail::keystore::compare(entries[a].key, entries[b].key, detail::keystore::CompareMode::Length) < 0;
             });
             result.length = toOffsets(order);
         }
@@ -353,25 +343,21 @@ namespace MKD
         {
             auto order = indices;
             std::ranges::sort(order, [&](const size_t a, const size_t b) {
-                return normalized[a] < normalized[b];
+                return detail::keystore::compare(entries[a].key, entries[b].key, detail::keystore::CompareMode::Forward) < 0;
             });
             result.prefix = toOffsets(order);
         }
 
         // Index C suffix reversed key comparison
         {
-            for (size_t i = 0; i < n; ++i)
-                std::ranges::reverse(normalized[i]);
-
             auto order = indices;
             std::ranges::sort(order, [&](const size_t a, const size_t b) {
-                return normalized[a] < normalized[b];
+                return detail::keystore::compare(entries[a].key, entries[b].key, detail::keystore::CompareMode::Backward) < 0;
             });
             result.suffix = toOffsets(order);
         }
 
-        // Index D same as prefix for now
-        result.other = result.prefix;
+        result.other = {};
 
         return result;
     }

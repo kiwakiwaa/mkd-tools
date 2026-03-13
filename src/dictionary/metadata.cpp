@@ -3,7 +3,6 @@
 //
 
 #include "MKD/dictionary/metadata.hpp"
-#include "platform/binary_file_reader.hpp"
 
 namespace MKD
 {

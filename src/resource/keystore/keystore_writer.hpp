@@ -22,23 +22,23 @@ namespace MKD
         explicit KeystoreWriter(uint32_t version = KEYSTORE_V1);
 
         /**
-         * Add a search key mapping to one or more page references
-         * If the key already exists, the page references are merged
+         * Add a search key mapping to one or more entry ids
+         * If the key already exists, the entry ids are merged
          *
          * @param key key to add
-         * @param pages page references that key should map to
+         * @param entryIds entry ids that key should map to
          * @return Void or error string
          */
-        Result<void> add(std::string_view key, std::vector<PageReference> pages);
+        Result<void> add(std::string_view key, std::vector<EntryId> entryIds);
 
         /**
-         * Add multiple search keys that all point to the same page
+         * Add multiple search keys that all point to the same entry id
          *
-         * @param page page reference to add the keys to
+         * @param entryId entry id to add the keys to
          * @param keys vector of keys to add
          * @return Void or error string
          */
-        Result<void> addPage(PageReference page, std::span<const std::string_view> keys);
+        Result<void> addPage(EntryId entryId, std::span<const std::string_view> keys);
 
         /**
          * Write the .keystore file to disk
@@ -55,7 +55,7 @@ namespace MKD
         struct Entry
         {
             std::string key;
-            std::vector<PageReference> pages;
+            std::vector<EntryId> entryIds;
         };
 
         /**
@@ -66,12 +66,12 @@ namespace MKD
         [[nodiscard]] std::vector<Entry> collectEntries() const;
 
         /**
-         * Encode page references into the variable-length binary format
+         * Encode entry ids into the variable-length binary format
          *
-         * @param pages pages to encode
-         * @return vector of encoded pages for the word section
+         * @param entryIds entry ids to encode
+         * @return vector of encoded entry ids for the word section
          */
-        static std::vector<uint8_t> encodePages(const std::vector<PageReference>& pages);
+        static std::vector<uint8_t> encodePages(const std::vector<EntryId>& entryIds);
 
         struct WordsSection
         {
@@ -111,6 +111,6 @@ namespace MKD
         static std::vector<uint8_t> serializeIndexArray(const std::vector<uint32_t>& offsets);
 
         uint32_t version_;
-        std::unordered_map<std::string, std::vector<PageReference>> entries_;
+        std::unordered_map<std::string, std::vector<EntryId>> entries_;
     };
 }

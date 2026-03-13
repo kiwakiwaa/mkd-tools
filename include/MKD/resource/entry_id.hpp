@@ -15,12 +15,12 @@
 namespace MKD
 {
     // Reference to a dictionary entry
-    struct PageReference
+    struct EntryId
     {
-        uint32_t page; // Page number in dictionary content
-        uint16_t item; // Item ID within page (HTML element id)
+        uint32_t pageId; // Page number in dictionary content
+        uint16_t itemId; // Entry ID within page (HTML element id)
 
-        auto operator<=>(const PageReference&) const = default;
+        auto operator<=>(const EntryId&) const = default;
     };
 
     // Variable-length encoding
@@ -50,12 +50,12 @@ namespace MKD
     [[nodiscard]] Result<DecodedEntry> decodeKeystoreEntry(std::span<const uint8_t> data);
 
     /**
-     * Decode all page references from a counted block.
+     * Decode all entry ids from a counted block.
      *
      * Block format: uint16_le count | encoded entries...
      *
      * @param data  Span starting at the uint16 count field
-     * @return Decoded page references, or an error
+     * @return Decoded entry ids, or an error
      */
-    [[nodiscard]] Result<std::vector<PageReference>> decodePageReferences(std::span<const uint8_t> data);
+    [[nodiscard]] Result<std::vector<EntryId>> decodeEntryIds(std::span<const uint8_t> data);
 }

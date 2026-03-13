@@ -3,22 +3,30 @@
 //
 
 #include "MKD/resource/headline_store.hpp"
-#include "platform/read_sequence.hpp"
+#include "platform/mmap_file.hpp"
 
 #include <utf8.h>
 
 #include <algorithm>
+#include <bit>
+#include <cstring>
 #include <format>
 #include <ranges>
+#include <span>
 
 namespace MKD
 {
-    void HeadlineHeader::swapEndianness() noexcept
+    static_assert(std::endian::native == std::endian::little, "HeadlineStore assumes little-endian byte order");
+
+    namespace
     {
-        entryCount = std::byteswap(entryCount);
-        recordsOffset = std::byteswap(recordsOffset);
-        stringsOffset = std::byteswap(stringsOffset);
-        recordStride = std::byteswap(recordStride);
+        template<typename T>
+        const T* ptrAt(const MappedFile& file, const size_t offset)
+        {
+            if (offset + sizeof(T) > file.size())
+                return nullptr;
+            return reinterpret_cast<const T*>(file.data().data() + offset);
+        }
     }
 
     uint32_t HeadlineHeader::effectiveStride() const noexcept
@@ -29,7 +37,8 @@ namespace MKD
 
     std::u16string HeadlineComponents::full() const
     {
-        std::u16string result(prefix.size() + headline.size(), suffix.size());
+        std::u16string result;
+        result.reserve(prefix.size() + headline.size() + suffix.size());
 
         if (!prefix.empty())
             result.append(prefix);
@@ -88,23 +97,47 @@ namespace MKD
 
     Result<HeadlineStore> HeadlineStore::load(const fs::path& filePath)
     {
-        auto reader = BinaryFileReader::open(filePath);
-        if (!reader) return std::unexpected(std::format("Failed to open headline store '{}'", filePath.string()));
+        auto mapped = MappedFile::open(filePath);
+        if (!mapped)
+            return std::unexpected(std::format("Failed to open headline store '{}'", filePath.string()));
 
-        auto sec = reader->sequence();
-        auto header = sec.read<HeadlineHeader>();
-        auto data = sec.readBytes(sec.remaining());
+        const auto* header = ptrAt<HeadlineHeader>(*mapped, 0);
+        if (!header)
+            return std::unexpected("Headline store file too small for header");
 
-        if (!sec)
-            return std::unexpected(std::format("Failed to load headline store: {}", sec.error()));
+        const uint32_t stride = header->effectiveStride();
+        const uint32_t entryCount = header->entryCount;
+        const size_t recordsOffset = header->recordsOffset;
+        const size_t stringsOffset = header->stringsOffset;
+        const size_t recordsBytes = static_cast<size_t>(entryCount) * stride;
 
-        const uint32_t stride = header.effectiveStride();
-        const uint32_t entryCount = header.entryCount;
-        const uint8_t* base = data.data() - sizeof(HeadlineHeader);
-        const uint8_t* records = base + header.recordsOffset;
-        const uint8_t* strings = base + header.stringsOffset;
+        if (stride < sizeof(HeadlineRecord))
+            return std::unexpected(std::format(
+                "Headline record stride {} is smaller than record size {}",
+                stride, sizeof(HeadlineRecord)));
 
-        return HeadlineStore(std::move(data), filePath.filename().string(), entryCount, stride, records, strings);
+        if (recordsOffset < sizeof(HeadlineHeader) || recordsOffset > stringsOffset)
+            return std::unexpected("Headline records offset out of bounds");
+
+        if (stringsOffset < sizeof(HeadlineHeader) || stringsOffset > mapped->size())
+            return std::unexpected("Headline strings offset out of bounds");
+
+        if (recordsOffset > stringsOffset)
+            return std::unexpected("Headline records offset must not exceed strings offset");
+
+        if (recordsBytes > mapped->size() - recordsOffset)
+            return std::unexpected("Headline records section exceeds file size");
+
+        if (stringsOffset < recordsOffset + recordsBytes)
+            return std::unexpected("Headline strings section overlaps records section");
+
+        return HeadlineStore(
+            std::move(*mapped),
+            filePath.filename().string(),
+            entryCount,
+            stride,
+            recordsOffset,
+            stringsOffset);
     }
 
     Result<HeadlineComponents> HeadlineStore::operator[](const size_t index) const
@@ -117,7 +150,7 @@ namespace MKD
     }
 
 
-    Result<HeadlineEntryId> HeadlineStore::entryIdAt(const size_t index) const
+    Result<EntryId> HeadlineStore::entryIdAt(const size_t index) const
     {
         if (index >= entryCount_)
             return std::unexpected(std::format(
@@ -147,18 +180,18 @@ namespace MKD
     }
 
 
-    HeadlineStore::HeadlineStore(std::vector<uint8_t>&& fileData,
+    HeadlineStore::HeadlineStore(MappedFile&& fileData,
                                  std::string filename,
                                  const uint32_t entryCount,
                                  const uint32_t stride,
-                                 const uint8_t* records,
-                                 const uint8_t* strings)
+                                 const size_t recordsOffset,
+                                 const size_t stringsOffset)
         : fileData_(std::move(fileData))
           , filename_(std::move(filename))
           , entryCount_(entryCount)
           , stride_(stride)
-          , records_(records)
-          , strings_(strings)
+          , recordsOffset_(recordsOffset)
+          , stringsOffset_(stringsOffset)
     {
     }
 
@@ -257,18 +290,32 @@ namespace MKD
 
     const uint8_t* HeadlineStore::recordAt(const size_t index) const noexcept
     {
-        return records_ + index * stride_;
+        return fileData_.data().data() + recordsOffset_ + index * stride_;
     }
 
     Result<std::u16string_view> HeadlineStore::stringAt(const uint32_t offset) const
     {
-        const auto* str = reinterpret_cast<const char16_t*>(strings_ + offset);
+        if (offset % sizeof(char16_t) != 0)
+            return std::unexpected(std::format("Headline string offset {} is not UTF-16 aligned", offset));
 
-        size_t len = 0;
-        while (str[len] != u'\0')
-            ++len;
+        const size_t absoluteOffset = stringsOffset_ + offset;
+        if (absoluteOffset >= fileData_.size())
+            return std::unexpected(std::format("Headline string offset {} out of bounds", offset));
 
-        return std::u16string_view(str, len);
+        const auto stringBytes = fileData_.data().subspan(absoluteOffset);
+        if (stringBytes.size() < sizeof(char16_t))
+            return std::unexpected(std::format("Headline string offset {} has no terminator", offset));
+
+        const auto* str = reinterpret_cast<const char16_t*>(stringBytes.data());
+        const size_t units = stringBytes.size() / sizeof(char16_t);
+
+        for (size_t len = 0; len < units; ++len)
+        {
+            if (str[len] == u'\0')
+                return std::u16string_view(str, len);
+        }
+
+        return std::unexpected(std::format("Headline string at offset {} is not null-terminated", offset));
     }
 
 

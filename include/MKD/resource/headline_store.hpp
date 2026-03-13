@@ -7,12 +7,12 @@
 #include "MKD/result.hpp"
 #include "MKD/resource/common.hpp"
 #include "MKD/resource/headline_record.hpp"
+#include "../../src/platform/mmap_file.hpp"
 
 #include <expected>
 #include <iterator>
 #include <string>
 #include <string_view>
-#include <vector>
 
 
 namespace MKD
@@ -49,15 +49,13 @@ namespace MKD
     constexpr size_t HEADLINE_EXTENDED_STRIDE = 24;
 
 
-    struct HeadlineHeader : BinaryStruct<HeadlineHeader>
+    struct HeadlineHeader
     {
         uint8_t reserved[8];
         uint32_t entryCount;
         uint32_t recordsOffset;
         uint32_t stringsOffset;
         uint32_t recordStride;  // 0 → use HEADLINE_DEFAULT_STRIDE
-
-        void swapEndianness() noexcept;
 
         [[nodiscard]] uint32_t effectiveStride() const noexcept;
     };
@@ -68,7 +66,7 @@ namespace MKD
         std::u16string_view prefix;     // empty if absent
         std::u16string_view headline;
         std::u16string_view suffix;     // empty if absent
-        HeadlineEntryId entryId;
+        EntryId entryId;
 
         [[nodiscard]] std::u16string full() const;
         [[nodiscard]] std::string fullUtf8() const;
@@ -108,7 +106,7 @@ namespace MKD
          * @param index Zero-based record index
          * @return Packed entry ID, or error if out of range
          */
-        [[nodiscard]] Result<HeadlineEntryId> entryIdAt(size_t index) const;
+        [[nodiscard]] Result<EntryId> entryIdAt(size_t index) const;
 
 
         /**
@@ -171,12 +169,12 @@ namespace MKD
     private:
 
         HeadlineStore(
-            std::vector<uint8_t>&& fileData,
+            MappedFile&& fileData,
             std::string filename,
             uint32_t entryCount,
             uint32_t stride,
-            const uint8_t* records,
-            const uint8_t* strings);
+            size_t recordsOffset,
+            size_t stringsOffset);
 
 
         /**
@@ -199,11 +197,11 @@ namespace MKD
         [[nodiscard]] Result<HeadlineComponents> componentsFromRecord(const uint8_t* record) const;
 
 
-        std::vector<uint8_t> fileData_;     // Entire file contents (owns the memory)
+        MappedFile fileData_;
         std::string filename_;
         uint32_t entryCount_;
         uint32_t stride_;
-        const uint8_t* records_;            // Points into fileData_
-        const uint8_t* strings_;            // Points into fileData_
+        size_t recordsOffset_;
+        size_t stringsOffset_;
     };
 }

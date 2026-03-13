@@ -69,13 +69,17 @@ namespace MKD
 
         for (size_t i = 0; i < count; ++i)
         {
-            auto result = keystore.getByIndex(index, i);
-            if (!result)
-                return std::unexpected(std::format("Entry {}: {}", i, result.error()));
+            auto entry = keystore.entryAt(index, i);
+            if (!entry)
+                return std::unexpected(std::format("Entry {}: {}", i, entry.error()));
+
+            auto entryIds = keystore.entryIdsAt(index, i);
+            if (!entryIds)
+                return std::unexpected(std::format("Entry {} references: {}", i, entryIds.error()));
 
             entries.push_back({
-                .key = result->key,
-                .pages = std::move(result->pages),
+                .key = entry->key,
+                .entryIds = std::move(*entryIds),
             });
         }
 
@@ -97,13 +101,13 @@ namespace MKD
         ExportResult result;
         result.totalResources = entries.size();
 
-        for (const auto& [key, pages] : entries)
+        for (const auto& [key, entryIds] : entries)
         {
             out << key << '\t';
-            for (size_t i = 0; i < pages.size(); ++i)
+            for (size_t i = 0; i < entryIds.size(); ++i)
             {
                 if (i > 0) out << '\t';
-                out << pages[i].page << '-' << pages[i].item;
+                out << entryIds[i].pageId << '-' << entryIds[i].itemId;
             }
             out << '\n';
             result.exported++;
@@ -121,22 +125,21 @@ namespace MKD
         if (ec)
             return std::unexpected(std::format("Cannot create directory: {}", ec.message()));
 
-        // Pack (page, item) into a single uint64 for fast hashing.
-        // Upper 32 bits = page, lower 16 bits = item.
-        constexpr auto pack = [](const PageReference& ref) -> uint64_t {
-            return (static_cast<uint64_t>(ref.page) << 16) | ref.item;
+        // Pack (page, item) into a single uint64
+        constexpr auto pack = [](const EntryId& ref) -> uint64_t {
+            return (static_cast<uint64_t>(ref.pageId) << 16) | ref.itemId;
         };
 
         std::unordered_map<uint64_t, std::vector<std::string_view> > inverse;
         inverse.reserve(entries.size());
 
-        for (const auto& [key, pages] : entries)
+        for (const auto& [key, entryIds] : entries)
         {
-            for (const auto& ref : pages)
+            for (const auto& ref : entryIds)
                 inverse[pack(ref)].push_back(key);
         }
 
-        // Sort by packed key (page-major order)
+        // page-major order
         std::vector<std::pair<uint64_t, std::vector<std::string_view>*> > sorted;
         sorted.reserve(inverse.size());
         for (auto& [packed, keys] : inverse)
@@ -154,9 +157,9 @@ namespace MKD
         for (const auto& [packed, keys] : sorted)
         {
             const auto page = static_cast<uint32_t>(packed >> 16);
-            const auto item = static_cast<uint16_t>(packed & 0xFFFF);
+            const auto entry = static_cast<uint16_t>(packed & 0xFFFF);
 
-            out << std::format("{:06}-{:04X}", page, item) <<'\t';
+            out << std::format("{:06}-{:04X}", page, entry) <<'\t';
             for (size_t i = 0; i < keys->size(); ++i)
             {
                 if (i > 0) out << '\t';

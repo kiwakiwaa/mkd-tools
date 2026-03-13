@@ -27,14 +27,14 @@ protected:
 
 TEST_F(KeystoreTest, LoadValidKeystoreFile)
 {
-    auto result2 = MKD::Keystore::load(testHeadwords_, "KNEJ");
+    auto result2 = MKD::Keystore::open(testHeadwords_, "KNEJ");
     ASSERT_TRUE(result2.has_value()) << "Failed to load keystore: " << result2.error();
 
     auto& keystore = result2.value();
 
     for (auto i = 0; i < keystore.indexSize(MKD::KeystoreIndex::Prefix); ++i)
     {
-        auto lookupResult = keystore.getByIndex(MKD::KeystoreIndex::Prefix, i);
-        ASSERT_TRUE(lookupResult.has_value()) << "Failed to get lookup: " << lookupResult.error();
+        auto lookupResult = keystore.keyAt(MKD::KeystoreIndex::Prefix, i);
+        ASSERT_TRUE(lookupResult.has_value()) << "Failed to get key: " << lookupResult.error();
     }
 }

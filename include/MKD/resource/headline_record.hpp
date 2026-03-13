@@ -4,24 +4,10 @@
 
 #pragma once
 
-#include "MKD/resource/common.hpp"
+#include "MKD/resource/entry_id.hpp"
 
 namespace MKD
 {
-    /**
-     * Records are sorted by this composite key
-     */
-    struct HeadlineEntryId : BinaryStruct<HeadlineEntryId>
-    {
-        uint32_t pageId;
-        uint16_t itemId;
-
-        void swapEndianness() noexcept
-        {
-            pageId = std::byteswap(pageId);
-            itemId = std::byteswap(itemId);
-        }
-    };
 
 
     /**
@@ -45,7 +31,7 @@ namespace MKD
      * String offsets are byte offsets into the UTF-16LE strings region.
      * An offset of 0 means the field is absent (prefix/suffix are optional).
      */
-    struct HeadlineRecord : BinaryStruct<HeadlineRecord>
+    struct HeadlineRecord
     {
         uint32_t entryIdLow;
         uint16_t entryIdHigh;
@@ -54,18 +40,9 @@ namespace MKD
         uint32_t prefixOffset;       // 0 = no prefix
         uint32_t suffixOffset;       // 0 = no suffix
 
-        [[nodiscard]] HeadlineEntryId entryId() const noexcept
+        [[nodiscard]] EntryId entryId() const noexcept
         {
             return { .pageId = entryIdLow, .itemId = entryIdHigh };
-        }
-
-        void swapEndianness() noexcept
-        {
-            entryIdLow = std::byteswap(entryIdLow);
-            entryIdHigh = std::byteswap(entryIdHigh);
-            headlineOffset = std::byteswap(headlineOffset);
-            prefixOffset = std::byteswap(prefixOffset);
-            suffixOffset = std::byteswap(suffixOffset);
         }
     };
 

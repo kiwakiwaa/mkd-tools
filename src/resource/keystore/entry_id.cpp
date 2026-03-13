@@ -2,10 +2,9 @@
 // kiwakiwaaにより 2026/02/11 に作成されました。
 //
 
-#include "MKD/resource/page_reference.hpp"
+#include "MKD/resource/entry_id.hpp"
 
 #include <cstring>
-#include <bit>
 #include <format>
 
 namespace MKD
@@ -90,19 +89,17 @@ namespace MKD
         return entry;
     }
 
-    Result<std::vector<PageReference>> decodePageReferences(const std::span<const uint8_t> data)
+    Result<std::vector<EntryId>> decodeEntryIds(const std::span<const uint8_t> data)
     {
         if (data.size() < 2)
             return std::unexpected(std::format(
-                "Page reference block too small: {} bytes", data.size()));
+                "Entry id block too small: {} bytes", data.size()));
 
         uint16_t count;
         std::memcpy(&count, data.data(), sizeof(uint16_t));
-        if constexpr (std::endian::native == std::endian::big)
-            count = std::byteswap(count);
 
         auto remaining = data.subspan(2);
-        std::vector<PageReference> refs;
+        std::vector<EntryId> refs;
         refs.reserve(count);
 
         for (uint16_t i = 0; i < count; ++i)
@@ -113,7 +110,7 @@ namespace MKD
                     "Failed to decode entry {}/{}: {}", i, count, decoded.error()));
 
             if (decoded->bytesConsumed > remaining.size())
-                return std::unexpected("Entry overflows page data block");
+                return std::unexpected("Entry overflows entry id data block");
 
             refs.push_back({decoded->page, decoded->item});
             remaining = remaining.subspan(decoded->bytesConsumed);

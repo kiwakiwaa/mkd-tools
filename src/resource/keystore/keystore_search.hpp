@@ -39,6 +39,19 @@ namespace MKD
     };
 
 
+    struct KeystoreSearchResult
+    {
+        std::string_view key;
+        size_t index = 0;
+        std::vector<EntryId> entryIds;
+
+        [[nodiscard]] size_t size() const noexcept { return entryIds.size(); }
+        [[nodiscard]] bool empty() const noexcept { return entryIds.empty(); }
+
+        [[nodiscard]] auto begin() const noexcept { return entryIds.begin(); }
+        [[nodiscard]] auto end() const noexcept { return entryIds.end(); }
+    };
+
     /**
      * Seach a keystore index, returning the range of matching positions. Reversed from HMDicKeyIndexSearch
      * - Performs two lower bound searches
@@ -61,6 +74,6 @@ namespace MKD
      * for exact mode, only entries whose normalised key exactly matches the normalised query are included
      * TODO: use length  index instead
      */
-    [[nodiscard]] Result<std::vector<KeystoreLookupResult>> keystoreSearchResults(const Keystore& keystore, std::string_view query, SearchMode mode);
+    [[nodiscard]] Result<std::vector<KeystoreSearchResult>> keystoreSearchResults(const Keystore& keystore, std::string_view query, SearchMode mode);
 
 }

@@ -39,7 +39,7 @@ namespace MKD
             ResourceType::Keystores,
             contentDir,
             [](const auto& e) { return e.path().extension() == ".keystore"; },
-            [&](const auto& e) { return Keystore::load(e.path(), std::string(dictId)); }
+            [&](const auto& e) { return Keystore::open(e.path(), std::string(dictId)); }
         );
     }
 
