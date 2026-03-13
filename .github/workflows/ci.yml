@@ -34,17 +34,17 @@ jobs:
       - name: Build
         run: cmake --build build --config Release
 
-      - name: Run mkd (Windows)
+      - name: Run mkd-tools (Windows)
         if: runner.os == 'Windows'
         run: |
           mkdir output
-          .\build\cli\Release\mkd.exe -d .\test\test-data -e TESTDICT -o output
+          .\build\cli\Release\mkd-tools.exe -d .\test\test-data -e TESTDICT -o output
 
-      - name: Run mkd (Linux)
+      - name: Run mkd-tools (Linux)
         if: runner.os == 'Linux'
         run: |
           mkdir output
-          ./build/cli/mkd -d ./test/test-data -e TESTDICT -o output
+          ./build/cli/mkd-tools -d ./test/test-data -e TESTDICT -o output
 
       - name: List output files (Windows)
         if: always() && runner.os == 'Windows'
