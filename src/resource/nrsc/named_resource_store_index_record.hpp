@@ -17,7 +17,7 @@ namespace MKD
      * to resources stored across multiple numbered .nrsc files. Records are
      * stored sorted by ID string to enable binary search lookups.
      */
-    struct NamedResourceStoreIndexRecord : BinaryStruct<NamedResourceStoreIndexRecord>
+    struct NamedResourceStoreIndexRecord
     {
         uint16_t format;            // Compression: 0=uncompressed, 1=zlib
         uint16_t fileSequence;      // Which numbered .nrsc file (0.nrsc, 1.nrsc, etc.)
@@ -30,8 +30,6 @@ namespace MKD
         [[nodiscard]] size_t idOffset() const noexcept;
         [[nodiscard]] uint64_t offset() const noexcept;
         [[nodiscard]] size_t len() const noexcept;
-
-        void swapEndianness() noexcept;
 
         [[nodiscard]] std::string formattedSize() const noexcept;
     };

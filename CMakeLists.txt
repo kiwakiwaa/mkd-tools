@@ -58,15 +58,6 @@ else ()
     list(FILTER MKD_SOURCES EXCLUDE REGEX "macos/")
 endif ()
 
-if (APPLE OR UNIX)
-    list(FILTER MKD_SOURCES EXCLUDE REGEX ".*resource_store_contents_fileio\\.cpp$")
-    list(FILTER MKD_SOURCES EXCLUDE REGEX ".*named_resource_store_contents_fileio\\.cpp$")
-else ()
-    list(FILTER MKD_SOURCES EXCLUDE REGEX ".*resource_store_contents_mmap\\.cpp$")
-    list(FILTER MKD_SOURCES EXCLUDE REGEX ".*named_resource_store_contents_mmap\\.cpp$")
-    list(FILTER MKD_SOURCES EXCLUDE REGEX ".*mmap_file\\.cpp$")
-endif ()
-
 add_library(mkd ${MKD_SOURCES} third_party/pugixml/pugixml.cpp)
 
 target_include_directories(mkd PUBLIC

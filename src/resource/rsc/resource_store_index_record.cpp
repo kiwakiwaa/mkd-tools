@@ -15,10 +15,4 @@ namespace MKD
     {
         return mapIdx;
     }
-
-    void ResourceStoreIndexRecord::swapEndianness() noexcept
-    {
-        itemId = std::byteswap(itemId);
-        mapIdx = std::byteswap(mapIdx);
-    }
 }

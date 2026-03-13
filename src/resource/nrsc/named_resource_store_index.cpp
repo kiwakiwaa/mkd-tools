@@ -2,42 +2,83 @@
 // kiwakiwaaにより 2026/01/16 に作成されました。
 //
 
-#include "platform/read_sequence.hpp"
+#include "platform/mmap_file.hpp"
 #include "named_resource_store_index.hpp"
 
 #include <algorithm>
 #include <cassert>
-#include <bit>
+#include <cstring>
 #include <format>
-#include <fstream>
 
 namespace MKD
 {
-    void NamedResourceStoreIndexHeader::swapEndianness() noexcept
+    namespace
     {
-        zeroField = std::byteswap(zeroField);
-        recordCount = std::byteswap(recordCount);
+        template<typename T>
+        const T* ptrAt(const MappedFile& file, const size_t offset)
+        {
+            if (offset + sizeof(T) > file.size())
+                return nullptr;
+            return reinterpret_cast<const T*>(file.data().data() + offset);
+        }
+
+        Result<MappedFile> openSingleFileWithExtension(const fs::path& directoryPath, std::string_view extension)
+        {
+            if (!fs::exists(directoryPath))
+                return std::unexpected(std::format("Directory not found: {}", directoryPath.string()));
+
+            if (!fs::is_directory(directoryPath))
+                return std::unexpected(std::format("Not a directory: {}", directoryPath.string()));
+
+            std::optional<fs::path> match;
+            for (const auto& entry : fs::directory_iterator(directoryPath))
+            {
+                if (!entry.is_regular_file() || entry.path().extension() != extension)
+                    continue;
+
+                if (match)
+                    return std::unexpected(std::format(
+                        "Multiple {} files found in: {}",
+                        extension,
+                        directoryPath.string()));
+
+                match = entry.path();
+            }
+
+            if (!match)
+                return std::unexpected(std::format("No {} file found in: {}", extension, directoryPath.string()));
+
+            return MappedFile::open(*match);
+        }
     }
 
 
     Result<NamedResourceStoreIndex> NamedResourceStoreIndex::load(const fs::path& directoryPath)
     {
-        auto file = findFileWithExtension(directoryPath, ".nidx")
-                                                                .and_then(BinaryFileReader::open);
+        auto file = openSingleFileWithExtension(directoryPath, ".nidx");
         if (!file) return std::unexpected(file.error());
 
-        auto seq = file->sequence();
-        auto header = seq.read<NamedResourceStoreIndexHeader>();
-        auto records = seq.readArray<NamedResourceStoreIndexRecord>(header.recordCount);
-        auto idStrings = seq.readString(seq.remaining());
+        const auto* header = ptrAt<NamedResourceStoreIndexHeader>(*file, 0);
+        if (!header)
+            return std::unexpected("Index file too small for header");
 
-        if (!seq)
-            return std::unexpected(seq.error());
+        constexpr size_t recordsOffset = HEADER_SIZE;
+        const size_t recordsBytes = static_cast<size_t>(header->recordCount) * sizeof(NamedResourceStoreIndexRecord);
+        if (recordsOffset + recordsBytes > file->size())
+            return std::unexpected("Index records exceed file size");
+
+        std::vector<NamedResourceStoreIndexRecord> records(header->recordCount);
+        std::memcpy(records.data(), file->data().data() + recordsOffset, recordsBytes);
+
+        const size_t stringsOffset = recordsOffset + recordsBytes;
+        std::string idStrings;
+        idStrings.resize(file->size() - stringsOffset);
+        std::memcpy(idStrings.data(), file->data().data() + stringsOffset, idStrings.size());
 
         return NamedResourceStoreIndex(
             std::move(records),
             std::move(idStrings),
-            HEADER_SIZE + header.recordCount * RECORD_SIZE
+            stringsOffset
         );
     }
 

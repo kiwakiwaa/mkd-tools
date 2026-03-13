@@ -54,12 +54,10 @@ namespace MKD
     constexpr size_t HEADER_SIZE = 8;
     constexpr size_t RECORD_SIZE = sizeof(NamedResourceStoreIndexRecord);
 
-    struct NamedResourceStoreIndexHeader : BinaryStruct<NamedResourceStoreIndexHeader>
+    struct NamedResourceStoreIndexHeader
     {
         uint32_t zeroField;
         uint32_t recordCount;
-
-        void swapEndianness() noexcept;
     };
 
 

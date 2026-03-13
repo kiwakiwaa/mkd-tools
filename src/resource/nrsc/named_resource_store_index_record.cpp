@@ -4,13 +4,11 @@
 
 #include "named_resource_store_index_record.hpp"
 
-#include <bit>
-
 namespace MKD
 {
     bool NamedResourceStoreIndexRecord::isCompressed() const noexcept
     {
-        return format == 1;;
+        return format == 1;
     }
 
 
@@ -34,15 +32,6 @@ namespace MKD
         return length;
     }
 
-    void NamedResourceStoreIndexRecord::swapEndianness() noexcept
-    {
-        format = std::byteswap(format);
-        fileSequence = std::byteswap(fileSequence);
-        idStringOffset = std::byteswap(idStringOffset);
-        fileOffset = std::byteswap(fileOffset);
-        length = std::byteswap(length);
-    }
-
     std::string NamedResourceStoreIndexRecord::formattedSize() const noexcept
     {
         const auto bytes = static_cast<double>(length);
@@ -57,10 +46,3 @@ namespace MKD
         return std::format("{:.2f} GB", bytes / 1024 / 1024 / 1024);
     }
 }
-
-
-
-
-
-
-

@@ -2,22 +2,55 @@
 // kiwakiwaaにより 2026/01/19 に作成されました。
 //
 
-#include "platform/read_sequence.hpp"
+#include "platform/mmap_file.hpp"
 #include "resource_store_index.hpp"
 
 #include <algorithm>
-#include <bit>
 #include <cassert>
+#include <cstring>
 #include <format>
-#include <fstream>
 #include <numeric>
 
 namespace MKD
 {
-    void ResourceStoreIndexHeader::swapEndianness() noexcept
+    namespace
     {
-        length = std::byteswap(length);
-        padding = std::byteswap(padding);
+        template<typename T>
+        const T* ptrAt(const MappedFile& file, const size_t offset)
+        {
+            if (offset + sizeof(T) > file.size())
+                return nullptr;
+            return reinterpret_cast<const T*>(file.data().data() + offset);
+        }
+
+        Result<MappedFile> openSingleFileWithExtension(const fs::path& directoryPath, std::string_view extension)
+        {
+            if (!fs::exists(directoryPath))
+                return std::unexpected(std::format("Directory not found: {}", directoryPath.string()));
+
+            if (!fs::is_directory(directoryPath))
+                return std::unexpected(std::format("Not a directory: {}", directoryPath.string()));
+
+            std::optional<fs::path> match;
+            for (const auto& entry : fs::directory_iterator(directoryPath))
+            {
+                if (!entry.is_regular_file() || entry.path().extension() != extension)
+                    continue;
+
+                if (match)
+                    return std::unexpected(std::format(
+                        "Multiple {} files found in: {}",
+                        extension,
+                        directoryPath.string()));
+
+                match = entry.path();
+            }
+
+            if (!match)
+                return std::unexpected(std::format("No {} file found in: {}", extension, directoryPath.string()));
+
+            return MappedFile::open(*match);
+        }
     }
 
 
@@ -144,7 +177,7 @@ namespace MKD
     }
 
 
-    ResourceStoreIndex::ResourceStoreIndex(const uint32_t mapVersion, std::optional<std::vector<ResourceStoreIndexRecord> >&& idxRecords,
+    ResourceStoreIndex::ResourceStoreIndex(const uint32_t mapVersion, std::optional<std::vector<ResourceStoreIndexRecord>>&& idxRecords,
                        std::vector<ResourceStoreMapRecord>&& mapRecords)
         : idxRecords_(std::move(idxRecords)), mapRecords_(std::move(mapRecords)), mapVersion_(mapVersion)
     {
@@ -248,50 +281,82 @@ namespace MKD
     Result<std::pair<std::vector<ResourceStoreMapRecord>, uint32_t>> ResourceStoreIndex::loadMapFile(
         const fs::path& directoryPath)
     {
-        auto file = findFileWithExtension(directoryPath, ".map")
-                .and_then(BinaryFileReader::open);
+        auto file = openSingleFileWithExtension(directoryPath, ".map");
         if (!file) return std::unexpected(file.error());
 
-        auto seq = file->sequence();
-        auto header = seq.read<ResourceStoreMapHeader>();
-        auto records = seq.readArray<ResourceStoreMapRecord>(header.recordCount);
+        const auto* header = ptrAt<ResourceStoreMapHeader>(*file, 0);
+        if (!header)
+            return std::unexpected("Map file too small for header");
 
-        if (!seq)
-            return std::unexpected(seq.error());
+        constexpr size_t recordsOffset = sizeof(ResourceStoreMapHeader);
+        const size_t recordsBytes = static_cast<size_t>(header->recordCount) * sizeof(ResourceStoreMapRecord);
+        if (recordsOffset + recordsBytes > file->size())
+            return std::unexpected("Map records exceed file size");
 
-        return std::pair{records, header.version};
+        std::vector<ResourceStoreMapRecord> records(header->recordCount);
+        std::memcpy(records.data(), file->data().data() + recordsOffset, recordsBytes);
+
+        return std::make_pair(std::move(records), header->version);
     }
 
 
-    Result<std::optional<std::vector<ResourceStoreIndexRecord>>> ResourceStoreIndex::loadIdxFile(
-        const fs::path& directoryPath)
+    Result<std::optional<std::vector<ResourceStoreIndexRecord>>> ResourceStoreIndex::loadIdxFile(const fs::path& directoryPath)
     {
-        // index file is optional so no error is returned if it simply isn't found
-        auto file = findFileWithExtension(directoryPath, ".idx")
-                .and_then(BinaryFileReader::open);
-        if (!file) return std::nullopt;
+        if (!fs::exists(directoryPath))
+            return std::unexpected(std::format("Directory not found: {}", directoryPath.string()));
 
-        auto seq = file->sequence();
-        auto header = seq.read<ResourceStoreIndexHeader>();
-        auto records = seq.readArray<ResourceStoreIndexRecord>(header.length);
+        if (!fs::is_directory(directoryPath))
+            return std::unexpected(std::format("Not a directory: {}", directoryPath.string()));
 
-        if (!seq)
-            return std::unexpected(seq.error());
+        std::optional<fs::path> idxPath;
+        for (const auto& entry : fs::directory_iterator(directoryPath))
+        {
+            if (!entry.is_regular_file() || entry.path().extension() != ".idx")
+                continue;
 
-        return records;
+            if (idxPath)
+                return std::unexpected(std::format("Multiple .idx files found in: {}", directoryPath.string()));
+
+            idxPath = entry.path();
+        }
+
+        if (!idxPath)
+            return std::optional<std::vector<ResourceStoreIndexRecord>>{};
+
+        auto file = MappedFile::open(*idxPath);
+        if (!file) return std::unexpected(file.error());
+
+        const auto* header = ptrAt<ResourceStoreIndexHeader>(*file, 0);
+        if (!header)
+            return std::unexpected("Idx file too small for header");
+
+        const size_t recordsOffset = sizeof(ResourceStoreIndexHeader);
+        const size_t recordsBytes = static_cast<size_t>(header->length) * sizeof(ResourceStoreIndexRecord);
+        if (recordsOffset + recordsBytes > file->size())
+            return std::unexpected("Idx records exceed file size");
+
+        std::vector<ResourceStoreIndexRecord> records(header->length);
+        std::memcpy(records.data(), file->data().data() + recordsOffset, recordsBytes);
+
+        return std::optional{std::move(records)};
     }
 
 
     void ResourceStoreIndex::buildSortedOrder()
     {
-        sortedOrder_.resize(mapRecords_.size());
-        std::iota(sortedOrder_.begin(), sortedOrder_.end(), size_t{0});
-        std::ranges::sort(sortedOrder_, [this](const size_t a, const size_t b) {
-            const auto& ra = mapRecords_[a];
-            const auto& rb = mapRecords_[b];
-            if (ra.chunkGlobalOffset != rb.chunkGlobalOffset)
-                return ra.chunkGlobalOffset < rb.chunkGlobalOffset;
-            return ra.chunkGlobalOffset < rb.chunkGlobalOffset;
+        if (!idxRecords_.has_value())
+        {
+            sortedOrder_.resize(mapRecords_.size());
+            std::iota(sortedOrder_.begin(), sortedOrder_.end(), 0);
+            return;
+        }
+
+        sortedOrder_.resize(idxRecords_->size());
+        std::iota(sortedOrder_.begin(), sortedOrder_.end(), 0);
+
+        std::ranges::sort(sortedOrder_, {}, [this](size_t i)
+        {
+            return (*idxRecords_)[i].id();
         });
     }
 }

@@ -30,6 +30,7 @@ namespace MKD
         MappedFile& operator=(MappedFile&& other) noexcept;
 
         [[nodiscard]] std::span<const uint8_t> data() const noexcept;
+
         [[nodiscard]] size_t size() const noexcept;
 
         /**
@@ -41,10 +42,17 @@ namespace MKD
         [[nodiscard]] Result<std::span<const uint8_t>> slice(size_t offset, size_t length) const;
 
     private:
+#if defined(_WIN32)
+        MappedFile(void* base, void* mappingHandle, size_t size);
+#else
         MappedFile(void* base, size_t size);
+#endif
         void release() noexcept;
 
         void* base_ = nullptr;
+#if defined(_WIN32)
+        void* mappingHandle_ = nullptr;
+#endif
         size_t size_ = 0;
     };
 }

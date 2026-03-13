@@ -6,16 +6,12 @@
 
 #include "MKD/result.hpp"
 #include "MKD/resource/retained_span.hpp"
+#include "../../platform/mmap_file.hpp"
 #include "named_resource_store_index.hpp"
 
 #include <expected>
-#include <fstream>
 #include <filesystem>
 #include <vector>
-
-#if defined(__APPLE__) || defined(__linux__)
-#include "../../platform/mmap_file.hpp"
-#endif
 
 namespace fs = std::filesystem;
 
@@ -35,21 +31,12 @@ namespace MKD
     * auto record = index->findById("icon_search.png");
     * auto bytes = data->get(*record);  // Retrieves and decompresses if needed
     */
-
-#if defined(__APPLE__) || defined(__linux__)
     struct NamedResourceStoreFile
     {
         uint32_t sequenceNumber; // Which numbered .nrsc file (0.nrsc, 1.nrsc, etc.)
         fs::path filePath;       // Path to .nrsc file
         MappedFile mapping;
     };
-#else
-    struct NamedResourceStoreFile
-    {
-        uint32_t sequenceNumber;
-        fs::path filePath;
-    };
-#endif
 
     class NamedResourceStoreContents
     {
@@ -77,24 +64,24 @@ namespace MKD
 
         /**
          * Collects all .nrsc files in the directory and sorts them by sequence number
-         * - Memory maps the files on Unix platforms
+         * - Memory maps the files for direct read access
+         *
          * @param directoryPath Path to directory
          * @return Vector of Nrsc resource files
          */
         static Result<std::vector<NamedResourceStoreFile>> discoverFiles(const fs::path& directoryPath);
 
         /**
-         * Reads raw bytes from the .nrsc file into readBuffer_
+         * Reads raw bytes from the .nrsc file mapping
          *
-         * @param file ResourceFile containing the path and global offset information
+         * @param file ResourceFile containing the path and mapped data
          * @param record NrscIndexRecord specifying the global offset and length to read
-         * @return void on success, or error string if failure
+         * @return Span view on success, or error string if failure
          */
         static Result<RetainedSpan> readUncompressed(const NamedResourceStoreFile& file, const NamedResourceStoreIndexRecord& record);
 
-
         /**
-         * Decompresses data from readBuffer_ based on compression format
+         * Decompresses data from the mapped file based on compression format
          *
          * @param record rscIndexRecord specifying compression format and expected decompressed length
          * @return Span view of the decompressed data, or error string if failure

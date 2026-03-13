@@ -1,5 +1,5 @@
 //
-// kiwakiwaaにより 2026/01/16 に作成されました。
+// kiwakiwaaにより 2026/02/28 に作成されました。
 //
 
 #include "MKD/resource/common.hpp"
@@ -8,14 +8,11 @@
 
 #include <algorithm>
 #include <format>
-#include <fstream>
 
 namespace MKD
 {
     NamedResourceStoreContents::NamedResourceStoreContents(std::vector<NamedResourceStoreFile>&& files)
-        : files_(std::move(files))
-    {
-    }
+        : files_(std::move(files)) {}
 
 
     Result<NamedResourceStoreContents> NamedResourceStoreContents::load(const fs::path& directoryPath)
@@ -38,14 +35,19 @@ namespace MKD
             auto seqNum = detail::parseSequenceNumber(entry.path().filename(), ".nrsc");
             if (!seqNum) continue;
 
+            auto mapping = MappedFile::open(entry.path());
+            if (!mapping) return std::unexpected(mapping.error());
+
             files.push_back(NamedResourceStoreFile{
                 .sequenceNumber = *seqNum,
                 .filePath = entry.path(),
+                .mapping = std::move(*mapping),
             });
         }
 
         if (files.empty())
-            return std::unexpected(std::format("No .nrsc files found in: {}", directoryPath.string()));
+            return std::unexpected(std::format(
+                "No .nrsc files found in: {}", directoryPath.string()));
 
         std::ranges::sort(files, {}, &NamedResourceStoreFile::sequenceNumber);
         return files;
@@ -68,52 +70,27 @@ namespace MKD
     }
 
 
-    static Result<std::vector<uint8_t> > readBytesFromFile(const fs::path& path, uint64_t offset, size_t length)
-    {
-        std::ifstream stream(path, std::ios::binary);
-        if (!stream)
-            return std::unexpected(std::format(
-                "Failed to open '{}'", path.string()));
-
-        stream.seekg(static_cast<std::streamoff>(offset));
-        if (!stream)
-            return std::unexpected(std::format(
-                "Failed to seek to offset {} in '{}'", offset, path.string()));
-
-        std::vector<uint8_t> buffer(length);
-        stream.read(reinterpret_cast<char*>(buffer.data()),
-                    static_cast<std::streamsize>(length));
-
-        if (!stream)
-            return std::unexpected(std::format(
-                "Failed to read {} bytes from '{}' at offset {}",
-                length, path.string(), offset));
-
-        return buffer;
-    }
-
-
     Result<RetainedSpan> NamedResourceStoreContents::readUncompressed(const NamedResourceStoreFile& file, const NamedResourceStoreIndexRecord& record)
     {
-        auto bytes = readBytesFromFile(file.filePath, record.offset(), record.len());
-        if (!bytes) return std::unexpected(bytes.error());
+        auto span = file.mapping.slice(record.offset(), record.len());
+        if (!span) return std::unexpected(span.error());
 
-        auto owned = std::make_shared<const std::vector<uint8_t>>(std::move(*bytes));
-        return RetainedSpan{std::move(owned)};
+        // span directly into mmap
+        return RetainedSpan{*span};
     }
 
 
     Result<RetainedSpan> NamedResourceStoreContents::readCompressed(const NamedResourceStoreFile& file, const NamedResourceStoreIndexRecord& record)
     {
-        auto bytes = readBytesFromFile(file.filePath, record.offset(), record.len());
-        if (!bytes) return std::unexpected(bytes.error());
+        auto compressed = file.mapping.slice(record.offset(), record.len());
+        if (!compressed) return std::unexpected(compressed.error());
 
-        const detail::ZlibStream stream;
-        auto result = stream.decompress(*bytes, bytes->size());
-        if (!result) return std::unexpected(result.error());
+        const detail::ZlibStream decompressor;
+        if (auto result = decompressor.decompress(*compressed, record.len()); !result)
+            return std::unexpected(result.error());
 
-        auto owned = std::make_shared<const std::vector<uint8_t>>(stream.takeBuffer());
+        auto buffer = std::make_shared<const std::vector<uint8_t>>(decompressor.takeBuffer());
 
-        return RetainedSpan{std::move(owned)};
+        return RetainedSpan{std::move(buffer)};
     }
 }

@@ -6,22 +6,17 @@
 
 #include "MKD/result.hpp"
 #include "MKD/resource/retained_span.hpp"
-#include "platform/read_sequence.hpp"
-#include "resource_store_index.hpp"
+#include "../../platform/mmap_file.hpp"
 #include "resource_store_crypto.hpp"
+#include "resource_store_index.hpp"
 
 #include <array>
 #include <filesystem>
 #include <memory>
-#include <optional>
-#include <vector>
-
-#if defined(__APPLE__) || defined(__linux__)
-#include "../../platform/mmap_file.hpp"
 #include <mutex>
+#include <optional>
 #include <unordered_map>
-#endif
-
+#include <vector>
 
 namespace fs = std::filesystem;
 
@@ -82,8 +77,6 @@ namespace MKD
     * - Format marker: First 4 bytes are 0x00000000
     * - Process: Decrypt → Decompress → Parse items
     */
-
-#if defined(__APPLE__) || defined(__linux__)
     struct ResourceStoreContentsFile
     {
         size_t sequenceNumber;
@@ -92,15 +85,6 @@ namespace MKD
         fs::path filePath;
         MappedFile mapping;
     };
-#else
-    struct ResourceStoreContentsFile
-    {
-        size_t sequenceNumber;
-        size_t globalOffset;
-        size_t length;
-        fs::path filePath;
-    };
-#endif
 
 
     class ResourceStoreContents
@@ -120,7 +104,7 @@ namespace MKD
          * Retrieve the data for a dictionary entry
          *
          * Given a MapRecord (obtained from RscIndex), this function:
-         * 1. Loads and decompresses the chunk  if not already cached
+         * 1. Loads and decompresses the chunk if not already cached
          * 2. Parses the specific item from within the decompressed chunk
          * 3. Returns a span view of the item's content
          *
@@ -153,18 +137,6 @@ namespace MKD
         [[nodiscard]] Result<RetainedSpan> readDirectData(size_t globalOffset) const;
 
         /**
-         * Parse a single item from the currently loaded chunk
-         *
-         * @param offset Offset within chunkBuffer_ where item begins
-         * @return Span view of item content or error string
-         */
-        static Result<RetainedSpan> parseItemFromChunk(std::shared_ptr<const std::vector<uint8_t>> chunk, size_t offset);
-
-        std::vector<ResourceStoreContentsFile> files_;
-        std::optional<std::array<uint8_t, 32>> decryptionKey_;
-
-#if defined(__APPLE__) || defined(__linux__)
-        /**
          * Resolves a global offset to a direct memory span
          * @param offset Offset in global address space
          * @param length Number of bytes to access from the offset
@@ -193,58 +165,24 @@ namespace MKD
          */
         [[nodiscard]] Result<std::vector<uint8_t>> readEncryptedRegion(size_t globalOffset) const;
 
+        /**
+         * Parse a single item from the currently loaded chunk
+         *
+         * @param offset Offset within chunkBuffer_ where item begins
+         * @return Span view of item content or error string
+         */
+        static Result<RetainedSpan> parseItemFromChunk(std::shared_ptr<const std::vector<uint8_t>> chunk, size_t offset);
+
         struct ChunkCache
         {
             std::mutex mutex;
             std::unordered_map<size_t, std::shared_ptr<const std::vector<uint8_t>>> entries;
         };
 
+        std::vector<ResourceStoreContentsFile> files_;
+        std::optional<std::array<uint8_t, 32>> decryptionKey_;
         std::unique_ptr<ChunkCache> cache_;
+
         static constexpr size_t MAX_CACHED_CHUNKS = 64;
-#else
-        /**
-         * Load and decompress a chunk from disk
-         *
-         * @param globalOffset Global offset to the start of the chunk
-         * @return void on success, error string on failure
-         */
-        Result<std::shared_ptr<const std::vector<uint8_t>>> loadChunk(size_t globalOffset) const;
-
-        /**
-         * Find which .rsc file contains a given global offset
-         *
-         * @param globalOffset Offset in global address space
-         * @return (file reference, local offset) pair or error string
-         */
-        Result<std::pair<const ResourceStoreContentsFile&, size_t>> findFileByOffset(size_t globalOffset) const;
-
-        /**
-         * Open and seek a reader to the local position for a global offset
-         * @param globalOffset Offset in global address space
-         * @return BinaryFileReader or error string
-         */
-        Result<BinaryFileReader> openReaderAt(size_t globalOffset) const;
-
-        /**
-         * Reads and processes the data chunk using the provided BinaryFile reader
-         * - reads the format marker and handles decryption and decompression as needed
-         *
-         * @param reader Binary file reader for reading the chunk
-         * @return Decoded data, or error string if failure
-         */
-        Result<std::vector<uint8_t>> readAndProcessChunk(BinaryFileReader& reader) const;
-
-        /**
-         * Helper function to read and decrypt chunk data from the new format
-         * - uses ResourceStoreCrypto::decrypt to decrypt the data
-         *
-         * @param reader Binary file reader for reading the chunk
-         * @return Decrypted data, or error string if failure
-         */
-        Result<std::vector<uint8_t>> readAndDecryptData(BinaryFileReader& reader) const;
-
-        mutable std::shared_ptr<const std::vector<uint8_t>> currentChunk_;
-        mutable size_t currentChunkOffset_ = SIZE_MAX;
-#endif
     };
 }

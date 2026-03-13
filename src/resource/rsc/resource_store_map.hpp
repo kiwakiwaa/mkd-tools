@@ -4,8 +4,7 @@
 
 #pragma once
 
-#include "MKD/resource/common.hpp"
-
+#include <cstdint>
 #include <format>
 
 namespace MKD
@@ -13,28 +12,19 @@ namespace MKD
     /**
      * MapHeader - contents.map File Header
      */
-    struct ResourceStoreMapHeader : BinaryStruct<ResourceStoreMapHeader>
+    struct ResourceStoreMapHeader
     {
         uint32_t version; // Format version identifier. 0x01 means the contents have encryption applied
         uint32_t recordCount; // Number of MapRecords in file
-
-        void swapEndianness() noexcept;
     };
 
-    struct ResourceStoreMapRecord : BinaryStruct<ResourceStoreMapRecord>
+    struct ResourceStoreMapRecord
     {
         uint32_t chunkGlobalOffset; // Global offset to compressed chunk
         uint32_t itemOffset; // Offset within decompressed chunk
 
         // if itemOffset is set to 0xFFFFFFFF, it means that compressed chunks are not used and the data
         // should be read directly from the global offset. This is the case for fonts
-
-        /**
-         * Convert between endianness formats
-         * Called automatically on big-endian systems
-         */
-        void swapEndianness() noexcept;
-
 
         /**
          * Default comparison operators

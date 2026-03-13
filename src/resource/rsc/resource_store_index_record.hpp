@@ -14,7 +14,7 @@ namespace MKD
      * Maps arbitrary item IDs to sequential map indices. This indirection
      * allows dictionaries to use non-sequential numbering while keeping the underlying MapRecords sequential.
      */
-    struct ResourceStoreIndexRecord : BinaryStruct<ResourceStoreIndexRecord>
+    struct ResourceStoreIndexRecord
     {
         uint32_t itemId; // Custom item ID
         uint32_t mapIdx; // Index into map file
@@ -30,12 +30,6 @@ namespace MKD
          * @return Index into MapRecords array
          */
         [[nodiscard]] size_t mapIndex() const noexcept;
-
-        /**
-         * Convert between endianness formats
-         * Called automatically on big-endian systems
-         */
-        void swapEndianness() noexcept;
 
         /**
          * Default comparison operators

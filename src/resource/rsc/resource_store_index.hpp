@@ -14,7 +14,6 @@
 #include <filesystem>
 #include <vector>
 
-
 namespace fs = std::filesystem;
 
 namespace MKD
@@ -56,7 +55,7 @@ namespace MKD
      * Sequential data like fonts only have a .map file
      *
      * Lookup Process:
-    *
+     *
      * with idx file:
      * ┌─────────┐     ┌─────────────┐     ┌─────────────┐     ┌──────────┐
      * │ Item ID │ --> │ contents.idx│ --> │ Map Index   │ --> │ Location │
@@ -72,12 +71,10 @@ namespace MKD
      *                  Direct use          via MapRecord
      *
      */
-    struct ResourceStoreIndexHeader : BinaryStruct<ResourceStoreIndexHeader>
+    struct ResourceStoreIndexHeader
     {
         uint32_t length;    // Number of IdxRecords in the file
         uint32_t padding;
-
-        void swapEndianness() noexcept;
     };
 
 
