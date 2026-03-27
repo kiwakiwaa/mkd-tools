@@ -11,6 +11,7 @@ endif ()
 
 option(BUILD_TESTING "Build tests" OFF)
 option(MKD_BUILD_CLI "Build command-line interface" ON)
+option(MKD_BUILD_RECEIPT_APP "Build macOS receipt app" ON)
 
 # release optimisations
 if (CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
@@ -100,6 +101,7 @@ add_subdirectory(third_party)
 # platform libraries
 if (APPLE)
     target_link_libraries(mkd PRIVATE
+            CRYPTOKIT_CPP
             "-framework Foundation"
             "-framework Security"
             "-framework CoreServices"
@@ -115,6 +117,10 @@ endif ()
 # CLI
 if (MKD_BUILD_CLI)
     add_subdirectory(cli)
+endif ()
+
+if (APPLE AND MKD_BUILD_RECEIPT_APP)
+    add_subdirectory(apps)
 endif ()
 
 # tests

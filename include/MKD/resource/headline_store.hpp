@@ -7,7 +7,7 @@
 #include "MKD/result.hpp"
 #include "MKD/resource/common.hpp"
 #include "MKD/resource/headline_record.hpp"
-#include "../../src/platform/mmap_file.hpp"
+#include "platform/mmap_file.hpp"
 
 #include <expected>
 #include <iterator>

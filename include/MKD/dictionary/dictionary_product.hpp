@@ -16,8 +16,11 @@ namespace MKD
         static Result<DictionaryProduct> openAtPath(const fs::path& path);
 
         [[nodiscard]] const DictionaryMetadata& metadata() const noexcept { return metadata_; }
+        [[nodiscard]] const DictionaryPaths& paths() const noexcept { return paths_; }
         [[nodiscard]] const std::vector<Dictionary>& dictionaries() const noexcept { return dictionaries_; }
         [[nodiscard]] std::vector<Dictionary>& dictionaries() noexcept { return dictionaries_; }
+        [[nodiscard]] std::string displayTitle() const;
+        [[nodiscard]] std::optional<fs::path> iconPath() const;
 
         // Find a specific content dictionary by its content identifier
         [[nodiscard]] const Dictionary* findContent(std::string_view contentId) const;
