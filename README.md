@@ -32,6 +32,22 @@ Use `--only` to limit export to specific resource types (`audio`, `entries`, `gr
 
 Output goes to `~/Documents/mkd-export` by default, configurable with `-o`.
 
+### macOS receipt app
+
+A lightweight AppKit app is included at `apps/monokakido-receipt-ui`.  Build it with the Xcode generator:
+
+```
+cmake -S . -B build-xcode -G Xcode -DMKD_BUILD_CLI=OFF -DMKD_BUILD_RECEIPT_APP=ON
+cmake --build build-xcode --target MKDReceiptApp --config Release
+```
+
+The built app bundle will be under:
+
+```
+build-xcode/apps/monokakido-receipt-ui/Debug/MKDReceiptApp.app
+```
+
+
 ### Acknowledgements
 This work benefited greatly from the use of [Hopper Disassembler](https://www.hopperapp.com) and [Frida](https://frida.re). 
 Their capabilities made the analysis of the dictionary formats substantially more tractable.
