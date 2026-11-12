@@ -5,6 +5,7 @@
 #pragma once
 
 #include "MKD/output/export_options.hpp"
+#include "MKD/dictionary/authoring_diagnostics.hpp"
 
 #include <CLI/CLI.hpp>
 
@@ -50,10 +51,16 @@ namespace MKDCLI
         bool replace = false;
     };
 
+    struct ValidateCommand
+    {
+        std::filesystem::path package;
+        MKD::ValidationOptions options;
+    };
+
     struct Invocation
     {
         GlobalOptions global;
-        std::variant<ListCommand, InfoCommand, ExportCommand, InstallCommand> command;
+        std::variant<ListCommand, InfoCommand, ExportCommand, InstallCommand, ValidateCommand> command;
     };
 
     class CLIApp
@@ -70,6 +77,7 @@ namespace MKDCLI
 
     private:
         void addInfoCommand();
+        void addValidateCommand();
         void addInstallCommand();
         void addExportCommand();
         void addResourceOptions(CLI::App& command);
@@ -77,6 +85,7 @@ namespace MKDCLI
         CLI::App app_{"mkd-tools"};
         Invocation invocation_;
         InfoCommand info_;
+        ValidateCommand validate_;
         InstallCommand install_;
         ExportCommand export_;
     };

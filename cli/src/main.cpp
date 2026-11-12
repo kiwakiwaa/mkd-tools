@@ -28,6 +28,9 @@ int main(int argc, char* argv[])
             return MKDCLI::runCommand(*command);
 #endif
 
+        if (const auto* command = std::get_if<MKDCLI::ValidateCommand>(&invocation->command))
+            return MKDCLI::runCommand(*command);
+
         auto source = MKDCLI::createSource(invocation->global);
         if (!source)
         {
@@ -39,7 +42,8 @@ int main(int argc, char* argv[])
         {
             if constexpr (std::is_same_v<std::decay_t<decltype(command)>, MKDCLI::ListCommand>)
                 return MKDCLI::runCommand(**source, command);
-            else if constexpr (std::is_same_v<std::decay_t<decltype(command)>, MKDCLI::InstallCommand>)
+            else if constexpr (std::is_same_v<std::decay_t<decltype(command)>, MKDCLI::InstallCommand> ||
+                               std::is_same_v<std::decay_t<decltype(command)>, MKDCLI::ValidateCommand>)
                 return 1;
             else
             {

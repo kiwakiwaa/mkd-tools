@@ -4,6 +4,7 @@
 
 #include "MKDCLI/commands.hpp"
 #include "MKD/output/export.hpp"
+#include "MKD/dictionary/package_validation.hpp"
 #include "MKDCLI/format.hpp"
 #include "MKDCLI/progress.hpp"
 
@@ -14,6 +15,22 @@
 
 namespace MKDCLI
 {
+    int runCommand(const ValidateCommand& command)
+    {
+        auto report = MKD::validatePackage(command.package, command.options);
+        if (!report)
+        {
+            std::cerr << "Error: " << report.error() << '\n';
+            return 2;
+        }
+
+        if (const auto detail = report->describe(); !detail.empty())
+            std::cout << detail << '\n';
+
+        std::cout << report->errors << " errors, " << report->warnings << " warnings\n";
+        return report->valid() ? 0 : 1;
+    }
+
     int runCommand(const MKD::DictionarySource& source, const ListCommand&)
     {
         auto available = source.findAllAvailable();

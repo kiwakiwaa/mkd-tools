@@ -10,6 +10,7 @@
 
 namespace MKDCLI
 {
+    int runCommand(const ValidateCommand& command);
     int runCommand(const MKD::DictionarySource& source, const ListCommand& command);
 #ifdef __APPLE__
     int runCommand(const InstallCommand& command);

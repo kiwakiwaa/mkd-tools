@@ -17,10 +17,21 @@ namespace MKDCLI
                         "Use a directory as the dictionary source")->check(CLI::ExistingDirectory);
         app_.add_subcommand("list", "List available dictionary products")->fallthrough();
         addInfoCommand();
+        addValidateCommand();
         addExportCommand();
 #ifdef __APPLE__
         addInstallCommand();
 #endif
+    }
+
+    void CLIApp::addValidateCommand()
+    {
+        auto* command = app_.add_subcommand("validate", "Check a finished package without modifying it");
+        command->add_option("package", validate_.package, "Path to a finished package")->required();
+        command->add_option("--max-issues", validate_.options.maxIssues, "Maximum reported issues (counts remain complete)");
+        command->add_flag("--warnings-as-errors", validate_.options.warningsAsErrors, "Fail validation on warnings");
+        command->add_flag("--scan-all-documents", validate_.options.scanAllDocuments, "Also check unregistered loose HTML documents");
+        command->callback([this] { invocation_.command = std::move(validate_); });
     }
 
     void CLIApp::addInstallCommand()
@@ -96,6 +107,8 @@ namespace MKDCLI
         try
         {
             app_.parse(argc, argv);
+            if (std::holds_alternative<ValidateCommand>(invocation_.command) && !invocation_.global.directory.empty())
+                throw CLI::ValidationError("--dir", "does not apply to package validation");
             if (std::holds_alternative<InstallCommand>(invocation_.command) && !invocation_.global.directory.empty())
                 throw CLI::ValidationError("--dir", "does not apply to installation");
         }
