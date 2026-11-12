@@ -81,6 +81,51 @@ Completion checks that:
 - Referenced local assets and configured presentation stylesheets exist.
 - Any explicit browsing order contains every page exactly once.
 
+## Validate a finished package
+
+Check the finished folder before installation:
+
+```sh
+mkd-tools validate build/Birds
+```
+
+This checks local resources, entry links and HTML fragments in registered documents
+and their reachable HTML/CSS files. It does not modify the package or fetch URLs.
+
+```sh
+# Include unregistered loose HTML files.
+mkd-tools validate build/Birds --scan-all-documents
+
+# Make warnings fail the check.
+mkd-tools validate build/Birds --warnings-as-errors
+```
+
+Exit status is 0 for a valid report, 1 for validation failure, and 2 when the
+package directory cannot be inspected. Warnings are advisory by default, including
+links to separately installed dictionaries that this package cannot verify.
+
+The same check is available from the library:
+
+=== "Python"
+
+    ```python
+    report = mkd.validate_package("build/Birds")
+    print(report.describe())
+    assert report.valid
+    ```
+
+=== "C++"
+
+    ```cpp
+    #include <MKD/dictionary/package_validation.hpp>
+
+    auto report = MKD::validatePackage("build/Birds").value();
+    std::cerr << report.describe() << '\n';
+    ```
+
+Validation checks structure and references. Verify rendering, search and media
+playback in Dictionaries as well.
+
 ## Install and replace
 
 Quit Dictionaries before installation. Run the CLI against the finished product:
