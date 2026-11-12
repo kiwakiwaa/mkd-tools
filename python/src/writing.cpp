@@ -5,6 +5,7 @@
 #include "bindings.hpp"
 #include "buffer.hpp"
 #include <MKD/dictionary/product_writer.hpp>
+#include <MKD/dictionary/package_validation.hpp>
 #include <nanobind/stl/filesystem.h>
 #include <nanobind/stl/optional.h>
 #include <nanobind/stl/string.h>
@@ -86,6 +87,11 @@ namespace MKD::Python
             .def_prop_ro("ready", &ValidationReport::ready)
             .def_prop_ro("truncated", &ValidationReport::truncated)
             .def("describe", &ValidationReport::describe);
+
+        module.def("validate_package", [](const std::filesystem::path& path, ValidationOptions options)
+        {
+            return unwrap(validatePackage(path, options));
+        }, "path"_a, nb::kw_only(), "options"_a = ValidationOptions{});
 
         nb::enum_<CreationProfile>(module, "CreationProfile")
             .value("GENERAL", CreationProfile::General)

@@ -45,6 +45,7 @@ target_sources(mkd PRIVATE
         content/html_lexer.cpp
         content/document_analysis.cpp
         content/document_checks.cpp
+        package/package_validation.cpp
         content/article_analysis.cpp
         authoring/dictionary_build.cpp
         authoring/search_index_builder.cpp

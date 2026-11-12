@@ -5,6 +5,7 @@ import xml.etree.ElementTree as ET
 import mkd
 from support import DictionaryTest, new_dictionary, new_product, one_birb
 
+
 class CreationTests(DictionaryTest):
     def test_preflight_is_bounded_deterministic_and_keeps_distinct_source_origins(self):
         reports = []
@@ -403,6 +404,8 @@ class CreationTests(DictionaryTest):
         report = product.preflight()
         self.assertTrue(report.valid, report.describe())
         product.finish()
+        report = mkd.validate_package(path)
+        self.assertTrue(report.valid, report.describe())
 
     def test_scanning_unregistered_documents_is_opt_in_before_and_after_publication(self):
         path = self.workspace() / 'ScanScope'
@@ -415,6 +418,26 @@ class CreationTests(DictionaryTest):
         options = mkd.ValidationOptions(scan_all_documents=True)
         self.assertFalse(product.preflight(options=options).valid)
         product.finish()
+        self.assertTrue(mkd.validate_package(path).valid)
+        self.assertFalse(mkd.validate_package(path, options=options).valid)
+
+    def test_tampered_document_errors_survive_report_truncation(self):
+        path = self.workspace() / 'Tampered'
+        product = new_product(path)
+        dictionary = new_dictionary(product)
+        one_birb(dictionary)
+        dictionary.add_asset('manual.html', b'<html/>')
+        dictionary.add_appendix('manual.html', 'Manual')
+        dictionary.finish()
+        product.finish()
+        (path / 'Contents/birbs/manual.html').write_text('<html><img src="lost.png"><a href="#absent">Broken</a></html>')
+        report = mkd.validate_package(path)
+        self.assertEqual({i.code for i in report.issues if i.severity == mkd.IssueSeverity.ERROR},
+                         {'missing-document-resource', 'missing-document-fragment'})
+        limited = mkd.validate_package(path, options=mkd.ValidationOptions(max_issues=0))
+        self.assertFalse(limited.valid)
+        self.assertEqual(limited.errors, report.errors)
+        self.assertTrue(limited.truncated)
 
     def test_native_profile_warnings_do_not_block_completion_unless_requested(self):
         path = self.workspace() / 'Warnings'
@@ -430,6 +453,8 @@ class CreationTests(DictionaryTest):
         self.assertGreater(strict.errors, 0)
         dictionary.finish()
         product.finish()
+        self.assertTrue(mkd.validate_package(path).valid)
+        self.assertFalse(mkd.validate_package(path, options=mkd.ValidationOptions(warnings_as_errors=True)).valid)
 
     def test_qualified_article_links_resolve_against_the_named_dictionary(self):
         path = self.workspace() / 'Qualified'
@@ -446,6 +471,8 @@ class CreationTests(DictionaryTest):
         report = product.preflight()
         self.assertTrue(report.valid, report.describe())
         product.finish()
+        report = mkd.validate_package(path)
+        self.assertTrue(report.valid, report.describe())
 
     def test_product_information_and_navigation_share_document_checks(self):
         path = self.workspace() / 'Information'
@@ -473,6 +500,8 @@ class CreationTests(DictionaryTest):
         report = product.preflight()
         self.assertTrue(report.valid, report.describe())
         product.finish()
+        report = mkd.validate_package(path)
+        self.assertTrue(report.valid, report.describe())
 
     def test_shared_fragment_references_do_not_treat_article_pages_or_css_as_html_assets(self):
         path = self.workspace() / 'Fragments'
@@ -491,6 +520,8 @@ class CreationTests(DictionaryTest):
         self.assertTrue(report.valid, report.describe())
         dictionary.finish()
         product.finish()
+        report = mkd.validate_package(path)
+        self.assertTrue(report.valid, report.describe())
 
     def test_zero_and_missing_entry_dictionary_use_current_article_context(self):
         path = self.workspace() / 'EntryContext'
@@ -509,6 +540,8 @@ class CreationTests(DictionaryTest):
         report = product.preflight()
         self.assertTrue(report.valid, report.describe())
         product.finish()
+        report = mkd.validate_package(path)
+        self.assertTrue(report.valid, report.describe())
 
     def test_external_entry_dictionaries_warn_but_missing_in_package_entries_fail(self):
         path = self.workspace() / 'ExternalEntry'
@@ -527,6 +560,13 @@ class CreationTests(DictionaryTest):
         self.assertIn('unverifiable-entry-dictionary', {i.code for i in report.issues})
         self.assertFalse(product.preflight(options=mkd.ValidationOptions(warnings_as_errors=True)).valid)
         product.finish()
+        reopened = mkd.validate_package(path)
+        self.assertTrue(reopened.valid, reopened.describe())
+        self.assertIn('unverifiable-entry-dictionary', {i.code for i in reopened.issues})
+        (path / 'Contents/birbs/manual.html').write_text('<html><a href="00009-F001-1000">Missing local entry</a></html>')
+        broken = mkd.validate_package(path)
+        self.assertFalse(broken.valid)
+        self.assertIn('missing-entry-target', {i.code for i in broken.issues})
 
     def test_loose_html_has_no_implicit_dictionary_even_inside_a_dictionary_directory(self):
         for suffix in ('', '-0', '-1000'):
@@ -544,6 +584,43 @@ class CreationTests(DictionaryTest):
                     self.assertIn('missing-entry-dictionary', {i.code for i in report.issues})
                 else:
                     product.finish()
+                    report = mkd.validate_package(path)
+                    self.assertTrue(report.valid, report.describe())
+
+    def test_native_diagnostic_codes_agree_before_and_after_publication(self):
+        path = self.workspace() / 'DiagnosticCodes'
+        product = new_product(path)
+        dictionary = new_dictionary(product)
+        entry = dictionary.create_entry()
+        entry.write_xml('<html xmlns="http://www.w3.org/1999/xhtml" hmhtml="5">'
+                        '<head><style>p { color:red; }</style></head><body/></html>')
+        dictionary.add_headline(mkd.HeadlineComponents('Bird', entry.target))
+        dictionary.add_search_key(mkd.SearchScope.HEADWORD, 'bird', entry.target)
+        authored = dictionary.preflight()
+        dictionary.finish()
+        product.finish()
+        reopened = mkd.validate_package(path)
+        self.assertEqual([i.code for i in authored.issues], ['document-coverage'])
+        self.assertEqual([i.code for i in reopened.issues], ['document-coverage'])
+        self.assertTrue(authored.valid)
+        self.assertTrue(reopened.valid)
+
+    def test_incomplete_document_identifiers_make_missing_fragments_advisory(self):
+        path = self.workspace() / 'IncompleteIdentifiers'
+        product = new_product(path)
+        dictionary = new_dictionary(product)
+        one_birb(dictionary)
+        dictionary.add_asset('manual.html', b'<html><p id="caf&eacute;">Text</p></html>')
+        dictionary.add_appendix('manual.html#absent', 'Manual')
+        dictionary.finish()
+        authored = product.preflight()
+        self.assertTrue(authored.valid, authored.describe())
+        product.finish()
+        reopened = mkd.validate_package(path)
+        self.assertTrue(reopened.valid, reopened.describe())
+        for report in (authored, reopened):
+            issue, = [i for i in report.issues if i.code == 'missing-document-fragment']
+            self.assertEqual(issue.severity, mkd.IssueSeverity.WARNING)
 
     def test_document_dependency_aggregation_keeps_counts_and_bounded_origins(self):
         path = self.workspace() / 'DocumentOrigins'
