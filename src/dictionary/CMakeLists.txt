@@ -41,6 +41,8 @@ target_sources(mkd PRIVATE
         authoring/metadata_preparation.cpp
         package/property_list.cpp
         package/metadata_writer.cpp
+        content/html_token.cpp
+        content/html_lexer.cpp
         content/article_analysis.cpp
         authoring/dictionary_build.cpp
         authoring/search_index_builder.cpp

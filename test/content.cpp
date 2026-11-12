@@ -3,6 +3,7 @@
 //
 
 #include "support/test_dictionary.hpp"
+#include "dictionary/content/html_lexer.hpp"
 #include <unordered_map>
 
 namespace MKD::test
@@ -90,4 +91,45 @@ namespace MKD::test
         ASSERT_TRUE(headline.references.front().source);
         EXPECT_EQ(headline.references.front().source->offset, nested.find("{REF:"));
     }
+
+    TEST(HtmlSyntax, AttributeTokensBorrowTheirOriginalSourceAndDecodeOnDemand)
+    {
+        const std::string input = "<IMG SRC='bird&#46;png?x=1&amp;y=2' disabled>";
+        detail::html::Lexer lexer(input);
+        auto element = lexer.next();
+        ASSERT_TRUE(element);
+        EXPECT_EQ(element->kind, detail::html::TokenKind::StartElement);
+        EXPECT_TRUE(element->named("img"));
+        auto attribute = lexer.next();
+        ASSERT_TRUE(attribute);
+        EXPECT_TRUE(attribute->named("src"));
+        EXPECT_EQ(attribute->value.data(), input.data() + input.find("bird"));
+        EXPECT_EQ(attribute->decodedValue().value(), "bird.png?x=1&y=2");
+        EXPECT_EQ(input.substr(attribute->source.offset, attribute->source.length), "SRC='bird&#46;png?x=1&amp;y=2'");
+        auto boolean = lexer.next();
+        ASSERT_TRUE(boolean);
+        EXPECT_TRUE(boolean->named("disabled"));
+        EXPECT_TRUE(boolean->value.empty());
+    }
+
+    TEST(HtmlSyntax, AttributeCharacterReferencesPreserveLiteralTextAndRejectInvalidValues)
+    {
+        const std::pair<std::string_view, std::string_view> cases[]{
+            {"a&b=1;c", "a&b=1;c"}, {"bird&amp;tree", "bird&tree"},
+            {"&#40165;", "鳥"}, {"&#x9CE5;", "鳥"}, {"tail&", "tail&"}
+        };
+        for (const auto& [input, expected] : cases)
+        {
+            const detail::html::Token token{detail::html::TokenKind::Attribute, "src", input, {}};
+            const auto decoded = token.decodedValue();
+            ASSERT_TRUE(decoded) << input;
+            EXPECT_EQ(*decoded, expected) << input;
+        }
+        for (const auto input : {"&#0;", "&#xD800;", "&#x110000;", "&#x;", "&unknown;"})
+        {
+            const detail::html::Token token{detail::html::TokenKind::Attribute, "src", input, {}};
+            EXPECT_FALSE(token.decodedValue()) << input;
+        }
+    }
+
 }
