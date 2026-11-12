@@ -17,16 +17,20 @@ namespace MKD::detail
     {
         std::vector<std::filesystem::path> paths;
         std::error_code ec;
-        const auto scan = [&](auto it) -> Result<void>
+        const auto scan = [&]<typename Iterator>(Iterator iterator) -> Result<void>
         {
-            const decltype(it) end;
-            for (; it != end; it.increment(ec))
+            const Iterator end;
+            for (; iterator != end; iterator.increment(ec))
             {
-                if (ec) break;
-                const bool match = directories ? it->is_directory(ec) : it->is_regular_file(ec);
-                if (ec) break;
-                if (match && (extension.empty() || it->path().extension() == extension))
-                    paths.push_back(it->path());
+                if (ec)
+                    break;
+
+                const bool match = directories ? iterator->is_directory(ec) : iterator->is_regular_file(ec);
+                if (ec)
+                    break;
+
+                if (match && (extension.empty() || iterator->path().extension() == extension))
+                    paths.push_back(iterator->path());
             }
             if (ec)
                 return std::unexpected(std::format("Cannot scan '{}': {}", directory.string(), ec.message()));

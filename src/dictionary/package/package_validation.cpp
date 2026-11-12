@@ -224,19 +224,18 @@ namespace MKD::detail
                 if (item.image && !product_.resource(*item.image))
                     error("missing-document-resource", *item.image, "Missing appendix thumbnail");
 
-                std::visit([&](const auto& destination)
+                std::visit([&]<typename Destination>(const Destination& destination)
                     {
-                        using T = std::decay_t<decltype(destination)>;
-                        if constexpr (std::is_same_v<T, AppendixDocument>)
+                        if constexpr (std::is_same_v<Destination, AppendixDocument>)
                             documents_.document(
                                 {destination.path, destination.fragment, origin("appendices", item.name)});
-                        else if constexpr (std::is_same_v<T, AppendixEntryLink>)
+                        else if constexpr (std::is_same_v<Destination, AppendixEntryLink>)
                             checkTarget(destination, item.name);
-                        else if constexpr (std::is_same_v<T, AppendixList>)
+                        else if constexpr (std::is_same_v<Destination, AppendixList>)
                             checkList(destination);
-                        else if constexpr (std::is_same_v<T, AppendixMenu>)
+                        else if constexpr (std::is_same_v<Destination, AppendixMenu>)
                             checkMenu(destination);
-                        else if constexpr (std::is_same_v<T, AppendixGallery>)
+                        else if constexpr (std::is_same_v<Destination, AppendixGallery>)
                         {
                             for (const auto& image : destination.images)
                                 if (!product_.resource(image))

@@ -568,10 +568,9 @@ namespace MKD::detail
             {
                 NavigationItem value{item.name, {}};
                 auto translated = std::visit(
-                    [&](const auto& target) -> Result<void>
+                    [&]<typename AppendixTarget>(const AppendixTarget& target) -> Result<void>
                     {
-                        using T = std::decay_t<decltype(target)>;
-                        if constexpr (std::is_same_v<T, AppendixMenu>)
+                        if constexpr (std::is_same_v<AppendixTarget, AppendixMenu>)
                         {
                             auto child = appendices(target, depth + 1);
                             if (!child)
@@ -579,7 +578,7 @@ namespace MKD::detail
 
                             value.target = std::move(*child);
                         }
-                        else if constexpr (std::is_same_v<T, AppendixGallery>)
+                        else if constexpr (std::is_same_v<AppendixTarget, AppendixGallery>)
                         {
                             auto path = gallery(target);
                             if (!path)
@@ -587,7 +586,7 @@ namespace MKD::detail
 
                             value.target = AppendixDocument{*path, {}};
                         }
-                        else if constexpr (std::is_same_v<T, AppendixCustom>)
+                        else if constexpr (std::is_same_v<AppendixTarget, AppendixCustom>)
                             return std::unexpected(
                                 "Custom appendix presenters cannot be composed into generic navigation");
                         else

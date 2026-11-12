@@ -38,12 +38,12 @@ int main(int argc, char* argv[])
             return 1;
         }
 
-        return std::visit([&](const auto& command)
+        return std::visit([&]<typename Command>(const Command& command)
         {
-            if constexpr (std::is_same_v<std::decay_t<decltype(command)>, MKDCLI::ListCommand>)
+            if constexpr (std::is_same_v<Command, MKDCLI::ListCommand>)
                 return MKDCLI::runCommand(**source, command);
-            else if constexpr (std::is_same_v<std::decay_t<decltype(command)>, MKDCLI::InstallCommand> ||
-                               std::is_same_v<std::decay_t<decltype(command)>, MKDCLI::ValidateCommand>)
+            else if constexpr (std::is_same_v<Command, MKDCLI::InstallCommand> ||
+                               std::is_same_v<Command, MKDCLI::ValidateCommand>)
                 return 1;
             else
             {

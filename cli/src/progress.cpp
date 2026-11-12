@@ -16,14 +16,13 @@ namespace MKDCLI
 {
     void ExportProgress::onEvent(const MKD::ExportEvent& event)
     {
-        std::visit([this](const auto& e)
+        std::visit([this]<typename ExportEvent>(const ExportEvent& e)
         {
-            using T = std::decay_t<decltype(e)>;
-            if constexpr (std::is_same_v<T, MKD::ExportBeginEvent>)
+            if constexpr (std::is_same_v<ExportEvent, MKD::ExportBeginEvent>)
                 onExportBegin(e);
-            else if constexpr (std::is_same_v<T, MKD::ProgressEvent>)
+            else if constexpr (std::is_same_v<ExportEvent, MKD::ProgressEvent>)
                 onProgress(e);
-            else if constexpr (std::is_same_v<T, MKD::PhaseEndEvent>)
+            else if constexpr (std::is_same_v<ExportEvent, MKD::PhaseEndEvent>)
                 onPhaseEnd(e);
         }, event);
     }
