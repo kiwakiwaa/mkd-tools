@@ -13,18 +13,20 @@
 
 namespace MKD::detail
 {
+    class DocumentChecks;
     class ProductBuild;
 
     class AppendixWriter
     {
     public:
         static void prepare(const ProductBuild& product, const AppendixMenu& menu, PreparedProductFiles& files,
-                            IssueCollector& issues, const SourceContext& context);
+                            IssueCollector& issues, DocumentChecks& documents, const SourceContext& context);
 
     private:
         explicit AppendixWriter(const ProductBuild& product, PreparedProductFiles& files, IssueCollector& issues,
+                                DocumentChecks& documents,
                                 const SourceContext& context)
-            : product_(product), files_(files), issues_(issues), context_(context)
+            : product_(product), files_(files), issues_(issues), documents_(documents), context_(context)
         {
         }
 
@@ -40,6 +42,7 @@ namespace MKD::detail
         const ProductBuild& product_;
         PreparedProductFiles& files_;
         IssueCollector& issues_;
+        DocumentChecks& documents_;
         const SourceContext& context_;
         std::string subject_;
         std::map<std::pair<uint16_t, EntryId>, DependencyOrigins> entryReferences_;

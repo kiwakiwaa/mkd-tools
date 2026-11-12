@@ -3,6 +3,7 @@
 //
 
 #include "product_build.hpp"
+#include "dictionary/content/document_checks.hpp"
 #include "dictionary_build.hpp"
 #include "product_information.hpp"
 #include "product_icon.hpp"
@@ -227,6 +228,9 @@ namespace MKD::detail
         if (written->skipped)
             return reject("Duplicate product asset");
 
+        if (htmlDocument(relative) || relative.ends_with(".css"))
+            assetSources_.insert_or_assign(std::string(relative), context);
+
         return {};
     }
 
@@ -251,32 +255,32 @@ namespace MKD::detail
         return menu;
     }
 
-    Result<ProductBuild::Prepared> ProductBuild::prepare(ValidationOptions options) const
+    void ProductBuild::assetSource(std::string path, SourceContext source) const
     {
-        if (auto state = check(); !state)
-            return std::unexpected(state.error());
+        assetSources_.insert_or_assign(std::move(path), std::move(source));
+    }
 
-        IssueCollector issues(options);
-        PreparedProductFiles files(path() / monokakido::paths::productContents);
-        auto metadata = metadata_;
-        std::set<SearchScope> scopes;
+    void ProductBuild::collectIssues(IssueCollector& issues) const
+    {
         if (dictionaries_.empty())
+        {
             issues.add("missing-dictionaries", "product", "Product has no dictionaries",
                        origin("preflight", "product"));
+        }
 
         for (const auto& dictionary : dictionaries_)
         {
             dictionary->collectIssues(issues);
             if (!dictionary->finished())
+            {
                 issues.pending(dictionary->metadata().identifier);
-
-            metadata.contents.push_back(dictionary->metadata());
-            const auto dictionaryScopes = dictionary->scopes();
-            scopes.insert(dictionaryScopes.begin(), dictionaryScopes.end());
+            }
         }
 
         for (const auto& reference : appendixReferences_ | std::views::values)
+        {
             if (auto valid = validateTarget(reference.target); !valid)
+            {
                 issues.add({
                     .code = "invalid-appendix-target",
                     .dictionaryId = reference.dictionaryId,
@@ -287,32 +291,111 @@ namespace MKD::detail
                     .occurrences = reference.origins.occurrences,
                     .origins = reference.origins.samples
                 });
+            }
+        }
+    }
+
+    DictionaryMetadata ProductBuild::prepareMetadata() const
+    {
+        auto metadata = metadata_;
+        std::set<SearchScope> scopes;
+        for (const auto& dictionary : dictionaries_)
+        {
+            metadata.contents.push_back(dictionary->metadata());
+            const auto dictionaryScopes = dictionary->scopes();
+            scopes.insert(dictionaryScopes.begin(), dictionaryScopes.end());
+        }
 
         if (profile_ == CreationProfile::Kanwa)
         {
             for (const auto& scope : monokakido::search::kanwaScopes)
+            {
                 if (scopes.contains(scope.scope))
+                {
                     metadata.searchScopeNames.emplace_back(scope.name);
+                }
+            }
         }
         else
+        {
             for (auto scope : scopes)
+            {
                 metadata.searchScopeNames.emplace_back(search::scopeDefinition(scope, profile_)->name);
+            }
+        }
 
         std::ranges::sort(metadata.fonts);
-        ProductInformationWriter::prepare(*this, metadata, files, issues, informationContext_);
+        return metadata;
+    }
+
+    Result<void> ProductBuild::checkResource(std::string_view path, const PreparedProductFiles& files) const
+    {
+        for (const auto& dictionary : dictionaries_)
+        {
+            const auto prefix = dictionary->metadata().directory + "/";
+            if (path.starts_with(prefix) && dictionary->hasResource(path.substr(prefix.size())))
+            {
+                return {};
+            }
+        }
+
+        if (files.contains(path))
+        {
+            return {};
+        }
+
+        return std::unexpected("Missing local resource: " + std::string(path));
+    }
+
+    void ProductBuild::prepareFiles(DictionaryMetadata& metadata, PreparedProductFiles& files, IssueCollector& issues,
+                                    DocumentChecks& documents) const
+    {
+        ProductInformationWriter::prepare(*this, metadata, files, issues, documents, informationContext_);
         const auto menu = appendixMenu();
         if (!menu.sections.empty() || appendices_)
-            AppendixWriter::prepare(*this, menu, files, issues, appendixContext_);
+        {
+            AppendixWriter::prepare(*this, menu, files, issues, documents, appendixContext_);
+        }
 
         if (navigation_ && !dictionaries_.empty())
         {
-            NavigationWriter::prepare(*this, *navigation_, menu, files, issues, navigationContext_);
+            NavigationWriter::prepare(*this, *navigation_, menu, files, issues, documents, navigationContext_);
             metadata.appendixViewController = profile_ == CreationProfile::Kanwa
                                                   ? monokakido::navigation::kanwaController
                                                   : monokakido::navigation::generalController;
             metadata.appendixFirst = true;
         }
+    }
 
+    Result<ProductBuild::Prepared> ProductBuild::prepare(ValidationOptions options) const
+    {
+        if (auto state = check(); !state)
+        {
+            return std::unexpected(state.error());
+        }
+
+        IssueCollector issues(options);
+        collectIssues(issues);
+        auto metadata = prepareMetadata();
+        PreparedProductFiles files(path() / monokakido::paths::productContents);
+        DocumentChecks documents(issues,
+                                 [&](std::string_view path) { return files.read(path); },
+                                 [&](std::string_view path) { return checkResource(path, files); },
+                                 [&](const AppendixEntryLink& target) { return validateTarget(target); },
+                                 metadata.contents, assetSources_);
+
+        prepareFiles(metadata, files, issues, documents);
+
+        for (const auto& dictionary : dictionaries_)
+        {
+            dictionary->productReferences().collect(documents, dictionary->metadata());
+        }
+        if (options.scanAllDocuments)
+        {
+            documents.scan(path() / monokakido::paths::productContents);
+        }
+
+        documents.run();
         return Prepared{std::move(issues).take(), std::move(files), std::move(metadata)};
     }
 

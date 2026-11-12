@@ -51,17 +51,26 @@ namespace MKD::content
     {
         std::string name;
     };
-    struct FragmentReference
-    {
-        std::string identifier;
-        ResourceSyntax syntax = ResourceSyntax::XmlAttribute;
-    };
     struct ExternalReference
     {
         std::string url;
     };
 
-    using ReferenceTarget = std::variant<EntryId, AssetReference, GaijiReference, FragmentReference, ExternalReference>;
+    /** Missing or zero dictionary IDs use the current article dictionary, when one exists. */
+    struct EntryReference
+    {
+        EntryId entryId;
+        std::optional<uint16_t> dictionaryId;
+    };
+    /** An empty path refers to the current document. The fragment is stored without its leading hash. */
+    struct DocumentReference
+    {
+        std::string path;
+        std::optional<std::string> fragment;
+        ResourceSyntax syntax = ResourceSyntax::XmlAttribute;
+    };
+
+    using ReferenceTarget = std::variant<EntryReference, DocumentReference, AssetReference, GaijiReference, ExternalReference>;
 
     struct Reference
     {
@@ -74,7 +83,10 @@ namespace MKD::content
     enum class DiagnosticKind
     {
         IgnoredAtRule,
-        IgnoredStyleElement
+        IgnoredStyleElement,
+        NativeMarkup,
+        UnsupportedDocumentFeature,
+        DuplicateIdentifier
     };
 
     struct Diagnostic
@@ -96,6 +108,12 @@ namespace MKD::content
         std::set<EntryId> anchors;
     };
 
+    struct DocumentAnalysis : Analysis
+    {
+        std::set<std::string> identifiers;
+        bool identifiersComplete = true;
+    };
+
     enum class CssInput
     {
         Stylesheet,
@@ -105,6 +123,8 @@ namespace MKD::content
     /** Reports source references without resolving paths or loading resources.
      * CSS analysis scans dependencies and selected compatibility issues with the Dictionaries article renderer.
      * It does not validate the full CSS grammar. */
+    /** Scans static HTML references without requiring XML well-formedness. */
+    AnalysisResult<DocumentAnalysis> analyzeDocument(std::string_view html);
     AnalysisResult<ArticleAnalysis> analyzeArticle(uint32_t page, std::string_view xhtml);
     AnalysisResult<Analysis> analyzeCss(std::string_view css, CssInput input = CssInput::Stylesheet);
     AnalysisResult<Analysis> analyzeHeadline(std::u16string_view text);

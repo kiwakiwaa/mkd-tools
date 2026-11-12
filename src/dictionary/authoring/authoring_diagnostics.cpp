@@ -3,6 +3,7 @@
 //
 
 #include "authoring_diagnostics.hpp"
+#include "dictionary/content/analysis_support.hpp"
 #include <algorithm>
 #include <tuple>
 
@@ -29,7 +30,7 @@ namespace MKD
 
     std::string AuthoringIssue::describe() const
     {
-        std::string result = "[" + code + "] ";
+        std::string result = (severity == IssueSeverity::Warning ? "warning [" : "[") + code + "] ";
         if (!dictionary.empty())
             result += dictionary + ": ";
 
@@ -73,6 +74,35 @@ namespace MKD
 
 namespace MKD::detail
 {
+    AuthoringOrigin locatedOrigin(AuthoringOrigin origin, std::optional<content::SourceRange> range,
+                                  const SourceMap& map)
+    {
+        if (range)
+        {
+            const auto [line, column] = map.lineColumn(range->offset);
+            origin.location = SourceLocation{range->offset, range->length, line, column};
+        }
+        return origin;
+    }
+
+    std::string_view diagnosticCode(content::DiagnosticKind kind)
+    {
+        switch (kind)
+        {
+        case content::DiagnosticKind::NativeMarkup:
+            return "native-article-profile";
+        case content::DiagnosticKind::DuplicateIdentifier:
+            return "duplicate-document-identifier";
+        default:
+            return "document-coverage";
+        }
+    }
+
+    IssueSeverity diagnosticSeverity(content::DiagnosticKind kind)
+    {
+        return kind == content::DiagnosticKind::DuplicateIdentifier ? IssueSeverity::Error : IssueSeverity::Warning;
+    }
+
     AuthoringOrigin origin(std::string operation, std::string subject, SourceContext context)
     {
         return {std::move(operation), std::move(subject), std::move(context), {}};
@@ -92,12 +122,21 @@ namespace MKD::detail
 
     static auto identity(const AuthoringIssue& issue)
     {
-        return std::tie(issue.dictionaryId, issue.dictionary, issue.code, issue.subject, issue.origins);
+        return std::tie(issue.dictionaryId, issue.dictionary, issue.code, issue.subject, issue.severity, issue.origins);
     }
 
     void IssueCollector::add(AuthoringIssue issue)
     {
         ++report_.totalIssues;
+        if (issue.severity == IssueSeverity::Warning)
+        {
+            ++report_.warnings;
+            if (options_.warningsAsErrors)
+                ++report_.errors;
+        }
+        else
+            ++report_.errors;
+
         const auto at = std::ranges::lower_bound(report_.issues, issue, [](const auto& left, const auto& right)
         {
             return identity(left) < identity(right);

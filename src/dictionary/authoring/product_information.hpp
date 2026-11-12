@@ -8,6 +8,7 @@
 
 namespace MKD::detail
 {
+    class DocumentChecks;
     class ProductBuild;
     class PreparedProductFiles;
     class IssueCollector;
@@ -17,6 +18,7 @@ namespace MKD::detail
     public:
         static Result<void> validate(const ProductInformation& information);
         static void prepare(const ProductBuild& product, const DictionaryMetadata& metadata,
-                            PreparedProductFiles& files, IssueCollector& issues, const SourceContext& context);
+                            PreparedProductFiles& files, IssueCollector& issues, DocumentChecks& documents,
+                            const SourceContext& context);
     };
 }

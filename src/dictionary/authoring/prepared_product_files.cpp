@@ -60,6 +60,13 @@ namespace MKD::detail
         return std::filesystem::is_regular_file(contents_ / WriteValidation::fromUtf8(path), error);
     }
 
+    Result<RetainedSpan> PreparedProductFiles::read(std::string_view path) const
+    {
+        if (const auto found = files_.find(path); found != files_.end())
+            return RetainedSpan::copy(found->second);
+        return RetainedSpan::map(contents_ / WriteValidation::fromUtf8(path));
+    }
+
     Result<void> PreparedProductFiles::emit() const
     {
         for (const auto& [path, bytes] : files_)

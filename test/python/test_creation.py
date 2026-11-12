@@ -5,7 +5,6 @@ import xml.etree.ElementTree as ET
 import mkd
 from support import DictionaryTest, new_dictionary, new_product, one_birb
 
-
 class CreationTests(DictionaryTest):
     def test_preflight_is_bounded_deterministic_and_keeps_distinct_source_origins(self):
         reports = []
@@ -20,7 +19,7 @@ class CreationTests(DictionaryTest):
                 dictionary.add_search_key(mkd.SearchScope.HEADWORD, 'bird', entry.target)
             report = dictionary.preflight()
             self.assertIsInstance(report.issues, tuple)
-            issue, = report.issues
+            issue, = [i for i in report.issues if i.severity == mkd.IssueSeverity.ERROR]
             self.assertEqual(issue.code, 'missing-resource')
             self.assertEqual(issue.occurrences, 8)
             self.assertIsInstance(issue.origins, tuple)
@@ -360,3 +359,204 @@ class CreationTests(DictionaryTest):
             (path / 'Contents/Appendix.plist').write_bytes(plistlib.dumps(menu))
             with self.assertRaises(mkd.Error):
                 mkd.DictionaryProduct.load_metadata(path)
+
+    def test_registered_documents_check_nested_resources_and_requested_fragments(self):
+        path = self.workspace() / 'Documents'
+        product = new_product(path)
+        dictionary = new_dictionary(product)
+        one_birb(dictionary)
+        dictionary.add_asset('manuals/guide.html', b'''<!doctype html><HTML><BODY>
+<IMG SRC=../images/bird%20one.png><a href="other.html#missing">Other</a>
+<link rel=stylesheet href=styles/main.css><p id=reading>Reading &copy;
+</BODY></HTML>''', source=mkd.SourceContext(filename='manual-source.html', record='guide'))
+        dictionary.add_asset('manuals/other.html', b'<html><p id=present>Other</html>')
+        dictionary.add_asset('manuals/styles/main.css', b'@import "other.css";p{background:url(../../images/css.png)}')
+        dictionary.add_asset('manuals/styles/other.css', b'@import "main.css";')
+        dictionary.add_asset('images/css.png', b'css image')
+        dictionary.add_appendix('manuals/guide.html#absent', 'Guide')
+        dictionary.finish()
+        before = {p.relative_to(path.parent): p.read_bytes() for p in path.parent.rglob('*') if p.is_file()}
+        report = product.preflight()
+        self.assertFalse(report.valid)
+        self.assertIn('missing-document-resource', {i.code for i in report.issues})
+        self.assertIn('missing-document-fragment', {i.code for i in report.issues})
+        resource = next(i for i in report.issues if i.subject.endswith('bird one.png'))
+        self.assertEqual(resource.origins[0].context.filename, 'manual-source.html')
+        self.assertEqual(resource.origins[0].location.line, 2)
+        self.assertEqual(before, {p.relative_to(path.parent): p.read_bytes() for p in path.parent.rglob('*') if p.is_file()})
+        self.assertFalse(path.exists())
+        with self.assertRaises(mkd.Error):
+            product.finish()
+        self.assertEqual(report.describe(), product.preflight().describe())
+
+    def test_nested_documents_can_use_packed_resources_and_intentional_external_urls(self):
+        path = self.workspace() / 'SharedChecks'
+        product = new_product(path)
+        dictionary = new_dictionary(product)
+        target = one_birb(dictionary)
+        dictionary.add_graphic('bird.png', b'packed image')
+        dictionary.add_asset('manuals/guide.html', f'<html><p id=reading>Guide</p>'
+            f'<img src="../graphics/bird.png"><a href="{target}-1000">Bird</a>'
+            '<a href="https://example.invalid/intentional">External</a></html>'.encode())
+        dictionary.add_appendix('manuals/guide.html#reading', 'Guide')
+        dictionary.finish()
+        report = product.preflight()
+        self.assertTrue(report.valid, report.describe())
+        product.finish()
+
+    def test_scanning_unregistered_documents_is_opt_in_before_and_after_publication(self):
+        path = self.workspace() / 'ScanScope'
+        product = new_product(path)
+        dictionary = new_dictionary(product)
+        one_birb(dictionary)
+        dictionary.add_asset('unregistered.html', b'<html><img src="missing.png"></html>')
+        dictionary.finish()
+        self.assertTrue(product.preflight().valid)
+        options = mkd.ValidationOptions(scan_all_documents=True)
+        self.assertFalse(product.preflight(options=options).valid)
+        product.finish()
+
+    def test_native_profile_warnings_do_not_block_completion_unless_requested(self):
+        path = self.workspace() / 'Warnings'
+        product = new_product(path)
+        dictionary = new_dictionary(product)
+        one_birb(dictionary)
+        report = dictionary.preflight()
+        self.assertTrue(report.valid)
+        self.assertGreater(report.warnings, 0)
+        self.assertEqual(report.errors, 0)
+        strict = dictionary.preflight(options=mkd.ValidationOptions(warnings_as_errors=True, max_issues=0))
+        self.assertFalse(strict.valid)
+        self.assertGreater(strict.errors, 0)
+        dictionary.finish()
+        product.finish()
+
+    def test_qualified_article_links_resolve_against_the_named_dictionary(self):
+        path = self.workspace() / 'Qualified'
+        product = new_product(path)
+        first = new_dictionary(product)
+        second = new_dictionary(product, 'test.second', 'second', dictionary_id=2000)
+        entry = first.create_entry()
+        entry.write_xml('<html><body><a href="00007-0000-2000">Other dictionary</a></body></html>')
+        first.add_headline(mkd.HeadlineComponents('First', entry.target))
+        first.add_search_key(mkd.SearchScope.HEADWORD, 'first', entry.target)
+        one_birb(second, page_id=7)
+        first.finish()
+        second.finish()
+        report = product.preflight()
+        self.assertTrue(report.valid, report.describe())
+        product.finish()
+
+    def test_product_information_and_navigation_share_document_checks(self):
+        path = self.workspace() / 'Information'
+        product = new_product(path)
+        dictionary = new_dictionary(product)
+        one_birb(dictionary)
+        dictionary.finish()
+        product.add_asset('legal/terms.html', b'<html>\n<img src="missing.png"></html>',
+                          source=mkd.SourceContext(filename='terms-source.html', record='licence'))
+        product.add_asset('manual.pdf', b'%PDF fixture')
+        product.set_information(mkd.ProductInformation(licenses=[mkd.ProductLicense('Terms', page='legal/terms.html')]))
+        product.set_navigation(mkd.NavigationIndex(sections=[mkd.NavigationSection('Manuals', [
+            mkd.NavigationItem(label='PDF', target=mkd.AppendixDocument('manual.pdf', fragment='page')),
+        ])]))
+        report = product.preflight()
+        self.assertFalse(report.valid)
+        image = next(i for i in report.issues if i.subject == 'legal/missing.png')
+        self.assertEqual(image.origins[0].context.filename, 'terms-source.html')
+        self.assertEqual(image.origins[0].location.line, 2)
+        self.assertIn('unsupported-document-fragment', {i.code for i in report.issues})
+        product.add_asset('legal/missing.png', b'image')
+        product.set_navigation(mkd.NavigationIndex(sections=[mkd.NavigationSection('Manuals', [
+            mkd.NavigationItem(label='PDF', target=mkd.AppendixDocument('manual.pdf')),
+        ])]))
+        report = product.preflight()
+        self.assertTrue(report.valid, report.describe())
+        product.finish()
+
+    def test_shared_fragment_references_do_not_treat_article_pages_or_css_as_html_assets(self):
+        path = self.workspace() / 'Fragments'
+        product = new_product(path)
+        dictionary = new_dictionary(product)
+        entry = dictionary.create_entry()
+        entry.write_xml('<html><body><p id="reading">Read</p><a href="#reading">Local</a>'
+                        '<a href="#">Top</a><p style="fill:url(#paint)">Paint</p></body></html>')
+        dictionary.add_headline(mkd.HeadlineComponents('Bird', entry.target))
+        dictionary.add_search_key(mkd.SearchScope.HEADWORD, 'bird', entry.target)
+        dictionary.add_asset('manual.html', b'<html><p id=reading>Read</p><a href="#reading">Local</a>'
+                                          b'<a href="#">Top</a><link rel=stylesheet href=manual.css></html>')
+        dictionary.add_asset('manual.css', b'p { fill: url(#paint); }')
+        dictionary.add_appendix('manual.html#reading', 'Manual')
+        report = product.preflight()
+        self.assertTrue(report.valid, report.describe())
+        dictionary.finish()
+        product.finish()
+
+    def test_zero_and_missing_entry_dictionary_use_current_article_context(self):
+        path = self.workspace() / 'EntryContext'
+        product = new_product(path)
+        first = new_dictionary(product)
+        one_birb(first)
+        second = new_dictionary(product, 'test.second', 'second', dictionary_id=2000)
+        entry = second.create_entry(page_id=7)
+        entry.write_xml('<html><body><a href="00007-0000">Local</a>'
+                        '<a href="00007-0000-0">Explicit zero</a>'
+                        '<a href="#00007-0000-0">Numeric fragment</a></body></html>')
+        second.add_headline(mkd.HeadlineComponents('Second', entry.target))
+        second.add_search_key(mkd.SearchScope.HEADWORD, 'second', entry.target)
+        first.finish()
+        second.finish()
+        report = product.preflight()
+        self.assertTrue(report.valid, report.describe())
+        product.finish()
+
+    def test_external_entry_dictionaries_warn_but_missing_in_package_entries_fail(self):
+        path = self.workspace() / 'ExternalEntry'
+        product = new_product(path)
+        dictionary = new_dictionary(product)
+        entry = dictionary.create_entry()
+        entry.write_xml('<html><body><a href="00009-F001-9000">External dictionary</a>'
+                        '<a href="#00009-F001-9000">External numeric fragment</a></body></html>')
+        dictionary.add_headline(mkd.HeadlineComponents('Bird', entry.target))
+        dictionary.add_search_key(mkd.SearchScope.HEADWORD, 'bird', entry.target)
+        dictionary.add_asset('manual.html', b'<html><a href="00009-F001-9000">External</a></html>')
+        dictionary.add_appendix('manual.html', 'Manual')
+        dictionary.finish()
+        report = product.preflight()
+        self.assertTrue(report.valid, report.describe())
+        self.assertIn('unverifiable-entry-dictionary', {i.code for i in report.issues})
+        self.assertFalse(product.preflight(options=mkd.ValidationOptions(warnings_as_errors=True)).valid)
+        product.finish()
+
+    def test_loose_html_has_no_implicit_dictionary_even_inside_a_dictionary_directory(self):
+        for suffix in ('', '-0', '-1000'):
+            with self.subTest(suffix=suffix):
+                path = self.workspace() / 'LooseContext'
+                product = new_product(path)
+                dictionary = new_dictionary(product)
+                target = one_birb(dictionary)
+                dictionary.add_asset('manual.html', f'<html><a href="{target}{suffix}">Bird</a></html>'.encode())
+                dictionary.add_appendix('manual.html', 'Manual')
+                dictionary.finish()
+                report = product.preflight()
+                self.assertEqual(report.valid, suffix == '-1000', report.describe())
+                if suffix != '-1000':
+                    self.assertIn('missing-entry-dictionary', {i.code for i in report.issues})
+                else:
+                    product.finish()
+
+    def test_document_dependency_aggregation_keeps_counts_and_bounded_origins(self):
+        path = self.workspace() / 'DocumentOrigins'
+        product = new_product(path)
+        dictionary = new_dictionary(product)
+        one_birb(dictionary)
+        dictionary.add_asset('a.html', b'<html>' + b'<a href="#missing">Broken</a>' * 7 + b'</html>')
+        dictionary.add_asset('b.html', b'<html><a href="a.html#missing">Another source</a></html>')
+        dictionary.add_appendix('a.html', 'First')
+        dictionary.add_appendix('b.html', 'Second')
+        dictionary.finish()
+        report = product.preflight()
+        issue, = [i for i in report.issues if i.code == 'missing-document-fragment']
+        self.assertEqual(issue.occurrences, 8)
+        self.assertEqual(len(issue.origins), 3)
+        self.assertFalse(report.valid)

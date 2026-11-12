@@ -15,6 +15,7 @@
 namespace MKD::detail
 {
     class DictionaryBuild;
+    class DocumentChecks;
 
     class ProductBuild : public std::enable_shared_from_this<ProductBuild>
     {
@@ -35,6 +36,7 @@ namespace MKD::detail
         Result<void> finish();
         Result<void> validateTarget(const AppendixEntryLink& target) const;
         void referenceAppendix(AppendixEntryLink target, const DictionaryContent& dictionary, AuthoringOrigin origin);
+        void assetSource(std::string path, SourceContext source) const;
         [[nodiscard]] bool hasFont(std::string_view filename) const;
         void registerFont(std::string filename) { metadata_.fonts.push_back(std::move(filename)); }
         [[nodiscard]] const std::filesystem::path& path() const { return output_->path(); }
@@ -52,8 +54,15 @@ namespace MKD::detail
             PreparedProductFiles files;
             DictionaryMetadata metadata;
         };
+
         Result<Prepared> prepare(ValidationOptions options) const;
+        void collectIssues(IssueCollector& issues) const;
+        DictionaryMetadata prepareMetadata() const;
+        void prepareFiles(DictionaryMetadata& metadata, PreparedProductFiles& files, IssueCollector& issues,
+                          DocumentChecks& documents) const;
+        Result<void> checkResource(std::string_view path, const PreparedProductFiles& files) const;
         AppendixMenu appendixMenu() const;
+
         struct AppendixReference
         {
             AppendixEntryLink target;
@@ -61,6 +70,7 @@ namespace MKD::detail
             std::string dictionary;
             DependencyOrigins origins;
         };
+
         std::unique_ptr<BuildDirectory> output_;
         DictionaryMetadata metadata_;
         std::string name_;
@@ -69,6 +79,7 @@ namespace MKD::detail
         std::optional<AppendixMenu> appendices_;
         std::optional<NavigationIndex> navigation_;
         std::map<std::tuple<uint16_t, uint16_t, EntryId>, AppendixReference> appendixReferences_;
+        mutable std::map<std::string, SourceContext, std::less<>> assetSources_;
         SourceContext appendixContext_, navigationContext_, informationContext_;
         std::vector<std::shared_ptr<DictionaryBuild>> dictionaries_;
     };

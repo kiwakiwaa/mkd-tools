@@ -1,3 +1,4 @@
+#include "dictionary/content/document_checks.hpp"
 //
 // kiwakiwaaにより 2026/10/19 に作成されました。
 //
@@ -32,9 +33,9 @@ namespace MKD::detail
         return nav::ItemKind::Reference;
     }
 
-    NavigationWriter::NavigationWriter(const ProductBuild& product, PreparedProductFiles& files, IssueCollector& issues,
+    NavigationWriter::NavigationWriter(const ProductBuild& product, PreparedProductFiles& files, IssueCollector& issues, DocumentChecks& documents,
                                        const SourceContext& context)
-        : product_(product), files_(files), issues_(issues), context_(context),
+        : product_(product), files_(files), issues_(issues), documents_(documents), context_(context),
           contents_(product.path() / monokakido::paths::productContents),
           directory_(product.profile() == CreationProfile::Kanwa
                          ? product.firstContent().directory + "/" + nav::directory
@@ -281,6 +282,7 @@ namespace MKD::detail
             if (extension != ".html" && extension != ".xml" && extension != ".pdf")
                 return std::unexpected("Navigation documents must be HTML, XML or PDF: " + document->path);
 
+            documents_.document({document->path, document->fragment, origin("setNavigation", title, context_)});
             return document->path + (document->fragment ? "#" + *document->fragment : "");
         }
         if (const auto* reference = std::get_if<NavigationReference>(&item.target))
@@ -606,10 +608,10 @@ namespace MKD::detail
     }
 
     void NavigationWriter::prepare(const ProductBuild& product, const NavigationIndex& value,
-                                   const AppendixMenu& appendices, PreparedProductFiles& files, IssueCollector& issues,
+                                   const AppendixMenu& appendices, PreparedProductFiles& files, IssueCollector& issues, DocumentChecks& documents,
                                    const SourceContext& context)
     {
-        NavigationWriter writer(product, files, issues, context);
+        NavigationWriter writer(product, files, issues, documents, context);
         auto result = [&]() -> Result<void>
         {
             auto menu = value;

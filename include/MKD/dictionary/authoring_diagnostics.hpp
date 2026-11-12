@@ -41,6 +41,12 @@ namespace MKD
         auto operator<=>(const AuthoringOrigin&) const = default;
     };
 
+    enum class IssueSeverity
+    {
+        Error,
+        Warning
+    };
+
     struct AuthoringIssue
     {
         /** Stable machine-readable code. Human-readable messages may change. */
@@ -52,21 +58,26 @@ namespace MKD
         size_t occurrences = 1;
         /** At most three distinct origins, selected in lexical order. */
         std::vector<AuthoringOrigin> origins;
+        IssueSeverity severity = IssueSeverity::Error;
         [[nodiscard]] std::string describe() const;
     };
 
     struct ValidationOptions
     {
         size_t maxIssues = 100;
+        bool warningsAsErrors = false;
+        bool scanAllDocuments = false;
     };
 
     struct ValidationReport
     {
         std::vector<AuthoringIssue> issues;
         size_t totalIssues = 0;
+        size_t errors = 0;
+        size_t warnings = 0;
         /** Open children are a completion prerequisite, separate from invalid authoring input. */
         std::vector<std::string> pendingDictionaries;
-        [[nodiscard]] bool valid() const { return totalIssues == 0; }
+        [[nodiscard]] bool valid() const { return errors == 0; }
         [[nodiscard]] bool ready() const { return valid() && pendingDictionaries.empty(); }
         [[nodiscard]] bool truncated() const { return totalIssues > issues.size(); }
         [[nodiscard]] std::string describe() const;

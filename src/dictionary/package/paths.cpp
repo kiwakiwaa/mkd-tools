@@ -115,10 +115,48 @@ namespace MKD::detail
 
         return resolved;
     }
-}
 
-namespace MKD::detail
-{
+    Result<std::string> decodeUrlPath(std::string_view value)
+    {
+        std::string decoded;
+        for (size_t i = 0; i < value.size(); ++i)
+        {
+            if (value[i] != '%')
+            {
+                decoded += value[i];
+                continue;
+            }
+
+            unsigned byte{};
+            if (i + 2 >= value.size())
+                return std::unexpected("Incomplete URL percent escape");
+
+            const auto parsed = std::from_chars(value.data() + i + 1, value.data() + i + 3, byte, 16);
+            if (parsed.ec != std::errc{} || parsed.ptr != value.data() + i + 3)
+                return std::unexpected("Invalid URL percent escape");
+
+            decoded += static_cast<char>(byte);
+            i += 2;
+        }
+        if (auto valid = WriteValidation::text(decoded, true); !valid)
+            return std::unexpected(valid.error());
+        return decoded;
+    }
+
+    Result<std::string> resolveDocumentPath(std::string_view value, std::string_view sourcePath)
+    {
+        auto decoded = decodeUrlPath(value.substr(0, value.find('?')));
+        if (!decoded)
+            return std::unexpected(decoded.error());
+
+        const auto base = WriteValidation::fromUtf8(sourcePath).parent_path();
+        const auto path = (base / WriteValidation::fromUtf8(*decoded)).lexically_normal().generic_string();
+        if (auto valid = WriteValidation::relativePath(path); !valid)
+            return std::unexpected(valid.error());
+
+        return path;
+    }
+
     Result<std::optional<std::string>> resolveAssetReference(const content::AssetReference& reference,
                                                              std::string_view sourcePath)
     {
@@ -136,26 +174,12 @@ namespace MKD::detail
                 return std::unexpected(valid.error());
             return std::string(value);
         }
-        std::string decoded;
-        for (size_t i = 0; i < value.size(); ++i)
-        {
-            if (value[i] != '%')
-                decoded += value[i];
-            else
-            {
-                if (i + 2 >= value.size())
-                    return std::unexpected("Invalid percent escape in CSS resource path");
 
-                unsigned byte{};
-                const auto result = std::from_chars(value.data() + i + 1, value.data() + i + 3, byte, 16);
-                if (result.ec != std::errc{} || result.ptr != value.data() + i + 3)
-                    return std::unexpected("Invalid percent escape in CSS resource path");
+        auto decoded = decodeUrlPath(value);
+        if (!decoded)
+            return std::unexpected("Invalid percent escape in CSS resource path");
 
-                decoded += static_cast<char>(byte);
-                i += 2;
-            }
-        }
-        const auto path = (WriteValidation::fromUtf8(sourcePath).parent_path() / WriteValidation::fromUtf8(decoded))
+        const auto path = (WriteValidation::fromUtf8(sourcePath).parent_path() / WriteValidation::fromUtf8(*decoded))
                           .lexically_normal()
                           .generic_u8string();
         const std::string utf8(reinterpret_cast<const char*>(path.data()), path.size());

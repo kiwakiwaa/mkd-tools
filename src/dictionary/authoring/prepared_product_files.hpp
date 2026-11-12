@@ -5,6 +5,7 @@
 #pragma once
 
 #include "MKD/result.hpp"
+#include "MKD/resource/retained_span.hpp"
 #include <filesystem>
 #include <map>
 #include <span>
@@ -26,6 +27,7 @@ namespace MKD::detail
         Result<void> add(std::string_view path, const pugi::xml_document& document);
         [[nodiscard]] bool contains(std::string_view path) const;
         Result<void> emit() const;
+        Result<RetainedSpan> read(std::string_view path) const;
 
     private:
         std::filesystem::path contents_;

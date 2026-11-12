@@ -46,9 +46,17 @@ namespace MKD::detail
         void collectIssues(IssueCollector& issues) const;
         Result<void> finish();
         Result<void> validateTarget(EntryId target) const;
+
+        const ProductReferences& productReferences() const
+        {
+            return finished() ? std::get<Finished>(state_).references : working().references.productReferences();
+        }
+
+        [[nodiscard]] bool hasResource(std::string_view path) const;
         [[nodiscard]] const DictionaryContent& metadata() const { return metadata_; }
         [[nodiscard]] const std::filesystem::path& root() const { return root_; }
         [[nodiscard]] bool finished() const { return std::holds_alternative<Finished>(state_); }
+
         [[nodiscard]] std::set<SearchScope> scopes() const
         {
             return finished() ? std::get<Finished>(state_).scopes : working().indexes.scopes();
@@ -105,6 +113,8 @@ namespace MKD::detail
             std::set<SearchScope> scopes;
             std::vector<EntryId> targets;
             std::vector<AppendixItem> appendices;
+            ProductReferences references;
+            std::set<std::string, std::less<>> resources;
         };
 
         std::weak_ptr<ProductBuild> product_;

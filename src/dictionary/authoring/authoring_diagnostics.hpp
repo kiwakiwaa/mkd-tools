@@ -7,9 +7,15 @@
 #include "MKD/dictionary/authoring_diagnostics.hpp"
 #include "MKD/dictionary/metadata.hpp"
 #include <string_view>
+#include "MKD/dictionary/content_analysis.hpp"
 
 namespace MKD::detail
 {
+    class SourceMap;
+    AuthoringOrigin locatedOrigin(AuthoringOrigin origin, std::optional<content::SourceRange> range,
+                                  const SourceMap& map);
+    std::string_view diagnosticCode(content::DiagnosticKind kind);
+    IssueSeverity diagnosticSeverity(content::DiagnosticKind kind);
     AuthoringOrigin origin(std::string operation, std::string subject, SourceContext context = {});
 
     struct DependencyOrigins

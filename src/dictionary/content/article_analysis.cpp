@@ -11,7 +11,6 @@
 
 namespace MKD::content
 {
-    using detail::EntryReference;
     using detail::WriteValidation;
 
     namespace
@@ -26,11 +25,20 @@ namespace MKD::content
             AnalysisResult<void> validateFragments() const
             {
                 for (const auto& reference : result.references)
-                    if (const auto fragment = std::get_if<FragmentReference>(&reference.target))
-                        if (fragment->syntax == ResourceSyntax::XmlAttribute && !ids_.contains(fragment->identifier))
-                            return std::unexpected(SourceError{
-                                "Unknown page fragment: " + fragment->identifier, reference.source
-                            });
+                {
+                    const auto document = std::get_if<DocumentReference>(&reference.target);
+                    if (!document || !document->path.empty() || !document->fragment || document->fragment->empty() ||
+                        document->syntax != ResourceSyntax::XmlAttribute)
+                        continue;
+
+                    if (detail::articleEntryReference(*document))
+                        continue;
+
+                    if (!ids_.contains(*document->fragment))
+                        return std::unexpected(SourceError{
+                            "Unknown page fragment: " + *document->fragment, reference.source
+                        });
+                }
 
                 return {};
             }
@@ -43,7 +51,7 @@ namespace MKD::content
                 {
                     if (!ids_.insert(id.value()).second)
                         error = SourceError{"Duplicate XML id within a page", source_};
-                    if (const auto target = EntryReference::parse(id.value()))
+                    if (const auto target = detail::EntryReference::parse(id.value()))
                     {
                         if (target->pageId != page_)
                             error = SourceError{"Entry anchor belongs to another page", source_};
@@ -104,8 +112,8 @@ namespace MKD::content
 
             void reference(std::string_view value, bool asset)
             {
-                if (const auto target = asset ? std::nullopt : EntryReference::parse(value))
-                    result.references.push_back({*target, source_});
+                if (!asset)
+                    result.references.push_back(detail::linkReference(value, source_));
                 else if (auto reference = detail::resourceReference(value, ResourceSyntax::XmlAttribute, source_))
                     result.references.push_back(std::move(*reference));
             }
@@ -145,6 +153,15 @@ namespace MKD::content
                 });
 
         ArticleWalker walker(page);
+        const auto root = document.document_element();
+        if (std::string_view(root.attribute("xmlns").value()) != "http://www.w3.org/1999/xhtml" ||
+            std::string_view(root.attribute("hmhtml").value()) != "5")
+            walker.result.diagnostics.push_back({
+                DiagnosticKind::NativeMarkup,
+                SourceRange{static_cast<size_t>(std::max<ptrdiff_t>(0, root.offset_debug())), 0},
+                "Native articles should declare the XHTML namespace and hmhtml=\"5\"."
+            });
+
         document.traverse(walker);
         if (walker.error)
             return std::unexpected(*walker.error);

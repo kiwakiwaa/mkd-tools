@@ -11,7 +11,6 @@
 namespace MKD::content
 {
     using detail::HeadlineToken;
-    using detail::EntryReference;
     namespace monokakido = detail::monokakido;
     namespace unicode = detail::unicode;
 
@@ -35,7 +34,7 @@ namespace MKD::content
                 if (const auto gaiji = std::get_if<Gaiji>(&element))
                     result.references.push_back({AssetReference{gaiji->resource.path}, source});
                 else if (const auto link = std::get_if<EntryLink>(&element))
-                    result.references.push_back({link->target, source});
+                    result.references.push_back({EntryReference{link->target, {}}, source});
                 else if (std::holds_alternative<HeadlineMarkup>(element))
                 {
                     const auto name = token->fields.front();
@@ -43,10 +42,11 @@ namespace MKD::content
                         result.references.push_back({AssetReference{std::string(token->fields[1])}, source});
 
                     if (name == monokakido::headline::reference && token->fields.size() >= 2)
-                        if (const auto target = EntryReference::parse(token->fields[1]))
-                            result.references.push_back({*target, source});
+                        if (const auto target = detail::EntryReference::parse(token->fields[1]))
+                            result.references.push_back({EntryReference{*target, {}}, source});
 
-                    if (std::ranges::find(monokakido::headline::commands, name) == monokakido::headline::commands.end() &&
+                    if (std::ranges::find(monokakido::headline::commands, name) == monokakido::headline::commands.end()
+                        &&
                         !name.starts_with("CID"))
                     {
                         if (name.contains('/'))

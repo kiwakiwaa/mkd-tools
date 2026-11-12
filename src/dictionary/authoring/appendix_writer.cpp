@@ -1,3 +1,4 @@
+#include "dictionary/content/document_checks.hpp"
 //
 // kiwakiwaaにより 2026/10/18 に作成されました。
 //
@@ -15,18 +16,20 @@
 namespace MKD::detail
 {
     void AppendixWriter::prepare(const ProductBuild& product, const AppendixMenu& menu, PreparedProductFiles& files,
-                                 IssueCollector& issues, const SourceContext& context)
+                                 IssueCollector& issues, DocumentChecks& documents, const SourceContext& context)
     {
-        AppendixWriter writer(product, files, issues, context);
+        AppendixWriter writer(product, files, issues, documents, context);
         auto result = writer.menu(menu, monokakido::paths::appendixInfo);
         for (const auto& [target, origins] : writer.entryReferences_)
             if (auto valid = product.validateTarget({target.second, target.first}); !valid)
-                issues.add({.code = "invalid-appendix-target",
-                            .dictionaryId = target.first,
-                            .subject = target.second.toString(),
-                            .message = valid.error(),
-                            .occurrences = origins.occurrences,
-                            .origins = origins.samples});
+                issues.add({
+                    .code = "invalid-appendix-target",
+                    .dictionaryId = target.first,
+                    .subject = target.second.toString(),
+                    .message = valid.error(),
+                    .occurrences = origins.occurrences,
+                    .origins = origins.samples
+                });
         if (!result)
             issues.add("invalid-appendices", "appendices", result.error(),
                        origin("setAppendices", "appendices", context));
@@ -163,6 +166,7 @@ namespace MKD::detail
             if (value.fragment->contains('#'))
                 return std::unexpected("Invalid appendix document fragment");
         }
+        documents_.document({value.path, value.fragment, origin("setAppendices", subject_, context_)});
         property_list::string(node, metadata::appendix::contents,
                               value.path + (value.fragment ? "#" + *value.fragment : ""));
         return {};
@@ -200,7 +204,8 @@ namespace MKD::detail
             property_list::string(images.append_child("dict"), metadata::appendix::file, image);
         }
         const auto relative =
-            std::format("{}/gallery-{}/{}", monokakido::paths::appendixMenus, ++nextMenu_, monokakido::paths::graphicsInfo);
+            std::format("{}/gallery-{}/{}", monokakido::paths::appendixMenus, ++nextMenu_,
+                        monokakido::paths::graphicsInfo);
         if (auto prepared = files_.add(relative, document); !prepared)
             return prepared;
 

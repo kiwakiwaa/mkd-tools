@@ -18,12 +18,12 @@ def new_product(destination, profile=mkd.CreationProfile.GENERAL):
     )
 
 
-def new_dictionary(product, identifier='test.birbs', directory='birbs', *, encrypted=False):
+def new_dictionary(product, identifier='test.birbs', directory='birbs', *, encrypted=False, dictionary_id=1000):
     return product.add_dictionary(
         mkd.DictionaryContent(
             identifier=identifier,
             directory=directory,
-            dictionary_id=1000,
+            dictionary_id=dictionary_id,
             title=mkd.LocalizedString(ja='小鳥たちの辞典'),
             languages=['ja', 'en'],
         ),
@@ -42,8 +42,8 @@ def write_article(entry, filename, **values):
     entry.write_xml(template.format(**values))
 
 
-def one_birb(dictionary):
-    entry = dictionary.create_entry()
+def one_birb(dictionary, *, page_id=None):
+    entry = dictionary.create_entry(page_id=page_id)
     entry.write_xml('<html><body><h1>雀</h1><p>A small birb.</p></body></html>')
     add_headword(dictionary, entry.target, '雀', 'すずめ')
     return entry.target

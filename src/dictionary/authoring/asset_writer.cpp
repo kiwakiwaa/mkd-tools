@@ -21,8 +21,10 @@ namespace MKD::detail
         const auto path = WriteValidation::fromUtf8(relative);
         const auto first = *path.begin();
 
-        if (first == monokakido::paths::contents || first == monokakido::paths::keys || first == monokakido::paths::secondaryKeys ||
-            first == monokakido::paths::headlines || first == monokakido::paths::audio || first == monokakido::paths::graphics ||
+        if (first == monokakido::paths::contents || first == monokakido::paths::keys || first ==
+            monokakido::paths::secondaryKeys ||
+            first == monokakido::paths::headlines || first == monokakido::paths::audio || first ==
+            monokakido::paths::graphics ||
             first == monokakido::paths::fonts || first == monokakido::paths::contentInfo)
             return std::unexpected("Asset path is reserved for generated dictionary resources");
 
@@ -65,7 +67,8 @@ namespace MKD::detail
         if (!writer)
         {
             auto created =
-                NamedResourceStoreWriter::create(root_ / (isAudio ? monokakido::paths::audio : monokakido::paths::graphics));
+                NamedResourceStoreWriter::create(
+                    root_ / (isAudio ? monokakido::paths::audio : monokakido::paths::graphics));
             if (!created)
                 return std::unexpected(created.error());
 
@@ -102,6 +105,18 @@ namespace MKD::detail
                 return std::unexpected("Gaiji PNG has an invalid signature");
         }
         return {};
+    }
+
+    std::set<std::string, std::less<>> AssetWriter::resourcePaths() const
+    {
+        auto paths = assets_;
+        for (const auto& name : graphicNames_)
+            paths.insert(std::string(monokakido::paths::graphics) + "/" + name);
+
+        for (const auto& name : audioNames_)
+            paths.insert(std::string(monokakido::paths::audio) + "/" + name);
+
+        return paths;
     }
 
     bool AssetWriter::contains(std::string_view path) const

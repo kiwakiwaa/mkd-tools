@@ -48,8 +48,11 @@ namespace MKD::Python
             .def_ro("context", &AuthoringOrigin::context)
             .def_ro("location", &AuthoringOrigin::location)
             .def("describe", &AuthoringOrigin::describe);
+        nb::enum_<IssueSeverity>(module, "IssueSeverity")
+            .value("ERROR", IssueSeverity::Error).value("WARNING", IssueSeverity::Warning);
         nb::class_<AuthoringIssue>(module, "AuthoringIssue")
             .def_ro("code", &AuthoringIssue::code)
+            .def_ro("severity", &AuthoringIssue::severity)
             .def_ro("dictionary_id", &AuthoringIssue::dictionaryId)
             .def_ro("dictionary", &AuthoringIssue::dictionary)
             .def_ro("subject", &AuthoringIssue::subject)
@@ -60,8 +63,11 @@ namespace MKD::Python
                 return diagnosticTuple(issue.origins);
             }).def("describe", &AuthoringIssue::describe);
         nb::class_<ValidationOptions>(module, "ValidationOptions")
-            .def(nb::init<size_t>(), nb::kw_only(), "max_issues"_a = 100)
-            .def_ro("max_issues", &ValidationOptions::maxIssues);
+            .def(nb::init<size_t, bool, bool>(), nb::kw_only(), "max_issues"_a = 100,
+                 "warnings_as_errors"_a = false, "scan_all_documents"_a = false)
+            .def_ro("max_issues", &ValidationOptions::maxIssues)
+            .def_ro("warnings_as_errors", &ValidationOptions::warningsAsErrors)
+            .def_ro("scan_all_documents", &ValidationOptions::scanAllDocuments);
         nb::class_<ValidationReport>(module, "ValidationReport")
             .def_prop_ro("issues",
                          [](const ValidationReport& report)
@@ -69,6 +75,8 @@ namespace MKD::Python
                              return diagnosticTuple(report.issues);
                          })
             .def_ro("total_issues", &ValidationReport::totalIssues)
+            .def_ro("errors", &ValidationReport::errors)
+            .def_ro("warnings", &ValidationReport::warnings)
             .def_prop_ro("pending_dictionaries",
                          [](const ValidationReport& report)
                          {

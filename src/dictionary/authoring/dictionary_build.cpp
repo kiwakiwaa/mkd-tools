@@ -1,3 +1,5 @@
+#include "dictionary/content/document_checks.hpp"
+#include "dictionary/package/paths.hpp"
 //
 // kiwakiwaaにより 2026/10/24 に作成されました。
 //
@@ -96,11 +98,12 @@ namespace MKD::detail
             if (!analysis)
                 return std::unexpected(analysis.error().describe("page " + std::to_string(page), xml));
 
+            if (auto recorded = work.references.record(*analysis, source, "page.html", xml); !recorded)
+                return recorded;
+
             work.references.define(analysis->anchors);
             work.pageOrigins.emplace(page, source);
             work.reservations.erase(page);
-            if (auto recorded = work.references.record(analysis->references, source, "page.html", xml); !recorded)
-                return recorded;
 
             if (!work.pages)
             {
@@ -138,7 +141,7 @@ namespace MKD::detail
             if (!analysis->references.empty())
             {
                 const auto utf8 = unicode::toUtf8(text);
-                if (auto recorded = working().references.record(analysis->references, source, {}, utf8); !recorded)
+                if (auto recorded = working().references.record(*analysis, source, {}, utf8); !recorded)
                     return recorded;
             }
 
@@ -182,10 +185,16 @@ namespace MKD::detail
                 if (!analysis)
                     return std::unexpected(analysis.error().describe(path, css));
 
-                if (auto recorded = working().references.record(analysis->references, source, path, css); !recorded)
+                analysis->diagnostics.clear();
+                if (auto recorded = working().references.record(*analysis, source, path, css); !recorded)
                     return recorded;
             }
-            return working().assets.writeAsset(path, bytes);
+
+            auto written = working().assets.writeAsset(path, bytes);
+            if (written && (htmlDocument(path) || path.ends_with(".css")))
+                (*owner())->assetSource(metadata_.directory + "/" + std::string(path), context);
+
+            return written;
         }, source);
     }
 
@@ -245,6 +254,7 @@ namespace MKD::detail
 
     void DictionaryBuild::collectIssues(IssueCollector& issues) const
     {
+        productReferences().collectIssues(issues, metadata_);
         if (finished())
             return;
 
@@ -337,7 +347,8 @@ namespace MKD::detail
 
             Finished completed{
                 work.indexes.scopes(), std::move(work.references).takeTargets(),
-                std::move(work.appendices)
+                std::move(work.appendices), std::move(work.references).takeProductReferences(),
+                work.assets.resourcePaths()
             };
             // Product-level links need only the sealed target catalogue, not the parsing and writing state.
             state_.emplace<Finished>(std::move(completed));
@@ -348,6 +359,13 @@ namespace MKD::detail
             return (*product)->fail(result.error());
 
         return result;
+    }
+
+    bool DictionaryBuild::hasResource(std::string_view path) const
+    {
+        if (!finished())
+            return working().assets.contains(path);
+        return std::get<Finished>(state_).resources.contains(path);
     }
 
     Result<void> DictionaryBuild::validateTarget(const EntryId target) const

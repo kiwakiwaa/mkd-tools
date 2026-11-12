@@ -112,6 +112,98 @@ namespace MKD::test
         EXPECT_TRUE(boolean->value.empty());
     }
 
+    TEST(HtmlSyntax, RawTextAndCommentsDoNotInventImageReferences)
+    {
+        const auto analysis = content::analyzeDocument(
+            "<!-- <img src='comment.png'> --><SCRIPT>let s = '<img src=script.png>'; </scripture>still script</SCRIPT>"
+            "<textarea><img src=textarea.png></textarea><img src=real.png>");
+        ASSERT_TRUE(analysis);
+        ASSERT_EQ(analysis->references.size(), 1);
+        EXPECT_EQ(std::get<content::AssetReference>(analysis->references.front().target).path, "real.png");
+        EXPECT_EQ(analysis->diagnostics.size(), 1);
+    }
+
+    TEST(HtmlSyntax, ReferenceCollectionSeparatesFragmentsStylesAndCoverage)
+    {
+        const auto analysis = content::analyzeDocument(
+            "<a id='reading' name='reading' href='other.html#reading'>Read</a>"
+            "<style>p{background:url(image.png)}</style>"
+            "<p id='reading' style='background:url(inline.png)' srcset='large.png 2x'>Duplicate</p>");
+        ASSERT_TRUE(analysis);
+        EXPECT_EQ(analysis->identifiers.size(), 1);
+        EXPECT_TRUE(analysis->identifiersComplete);
+        ASSERT_EQ(analysis->references.size(), 3);
+        const auto& link = std::get<content::DocumentReference>(analysis->references.front().target);
+        EXPECT_EQ(link.path, "other.html");
+        EXPECT_EQ(link.fragment, "reading");
+        EXPECT_EQ(std::ranges::count(analysis->diagnostics, content::DiagnosticKind::DuplicateIdentifier,
+                                    &content::Diagnostic::kind), 1);
+    }
+
+    TEST(HtmlSyntax, ReportsIncompleteIdentifierCoverage)
+    {
+        const auto entity = content::analyzeDocument("<p id='caf&eacute;'>A named entity</p>");
+        ASSERT_TRUE(entity);
+        EXPECT_FALSE(entity->identifiersComplete);
+        EXPECT_FALSE(entity->diagnostics.empty());
+        const auto malformed = content::analyzeDocument("<img src='unterminated");
+        ASSERT_TRUE(malformed);
+        EXPECT_FALSE(malformed->identifiersComplete);
+        EXPECT_FALSE(malformed->diagnostics.empty());
+    }
+
+    TEST(ContentAnalysis, ArticlesAndLooseHtmlShareDocumentFragmentReferences)
+    {
+        const std::string html = "<html><body><p id=\"reading\"/><a href=\"#reading\"/>"
+                                 "<a href=\"other.html#section\"/></body></html>";
+        const auto article = require(content::analyzeArticle(7, html));
+        const auto document = require(content::analyzeDocument(html));
+        ASSERT_EQ(article.references.size(), 2);
+        ASSERT_EQ(document.references.size(), 2);
+        for (size_t i = 0; i < article.references.size(); ++i)
+        {
+            const auto* articleLink = std::get_if<content::DocumentReference>(&article.references[i].target);
+            const auto* documentLink = std::get_if<content::DocumentReference>(&document.references[i].target);
+            ASSERT_NE(articleLink, nullptr);
+            ASSERT_NE(documentLink, nullptr);
+            EXPECT_EQ(articleLink->path, documentLink->path);
+            EXPECT_EQ(articleLink->fragment, documentLink->fragment);
+            EXPECT_EQ(articleLink->syntax, documentLink->syntax);
+        }
+        EXPECT_TRUE(std::get<content::DocumentReference>(article.references.front().target).path.empty());
+        EXPECT_FALSE(content::analyzeArticle(7, "<html><a href=\"#missing\"/></html>"));
+        EXPECT_TRUE(content::analyzeArticle(7, "<html><a href=\"#\"/></html>"));
+    }
+
+    TEST(ContentAnalysis, CssPaintFragmentsUseTheSharedRepresentationWithoutDocumentIdChecks)
+    {
+        const auto css = require(content::analyzeCss("p { fill: url(#paint); }"));
+        ASSERT_EQ(css.references.size(), 1);
+        const auto* fragment = std::get_if<content::DocumentReference>(&css.references.front().target);
+        ASSERT_NE(fragment, nullptr);
+        EXPECT_TRUE(fragment->path.empty());
+        EXPECT_EQ(fragment->fragment, "paint");
+        EXPECT_EQ(fragment->syntax, content::ResourceSyntax::CssUrl);
+        EXPECT_TRUE(content::analyzeArticle(7, "<html><p style=\"fill:url(#paint)\"/></html>"));
+    }
+
+    TEST(ContentAnalysis, EntryReferencesShareOneTypeWithOptionalNativeDictionaryIdentity)
+    {
+        const auto article = require(content::analyzeArticle(7,
+            "<html><a href=\"00007-F001\"/><a href=\"00007-F001-0\"/>"
+            "<a href=\"00007-F001-2000\"/></html>"));
+        ASSERT_EQ(article.references.size(), 3);
+        for (const auto& reference : article.references)
+        {
+            const auto* entry = std::get_if<content::EntryReference>(&reference.target);
+            ASSERT_NE(entry, nullptr);
+            EXPECT_EQ(entry->entryId, (EntryId{7, 0xF001}));
+        }
+        EXPECT_FALSE(std::get<content::EntryReference>(article.references[0].target).dictionaryId);
+        EXPECT_EQ(std::get<content::EntryReference>(article.references[1].target).dictionaryId, 0);
+        EXPECT_EQ(std::get<content::EntryReference>(article.references[2].target).dictionaryId, 2000);
+        EXPECT_TRUE(content::analyzeArticle(7, "<html><a href=\"#00008-F001-2000\"/></html>"));
+    }
     TEST(HtmlSyntax, AttributeCharacterReferencesPreserveLiteralTextAndRejectInvalidValues)
     {
         const std::pair<std::string_view, std::string_view> cases[]{

@@ -30,6 +30,7 @@ namespace MKD::detail
         void registerLoose(std::string path) { assets_.insert(std::move(path)); }
         [[nodiscard]] bool contains(std::string_view path) const;
         [[nodiscard]] bool containsLoose(std::string_view path) const { return assets_.contains(path); }
+        std::set<std::string, std::less<>> resourcePaths() const;
         [[nodiscard]] size_t audioCount() const { return audioNames_.size(); }
 
     private:

@@ -16,13 +16,14 @@
 
 namespace MKD::detail
 {
+    class DocumentChecks;
     class ProductBuild;
 
     class NavigationWriter
     {
     public:
         static void prepare(const ProductBuild& product, const NavigationIndex& index, const AppendixMenu& appendices,
-                            PreparedProductFiles& files, IssueCollector& issues, const SourceContext& context);
+                            PreparedProductFiles& files, IssueCollector& issues, DocumentChecks& documents, const SourceContext& context);
 
     private:
         struct Node
@@ -56,7 +57,7 @@ namespace MKD::detail
             std::vector<uint8_t> bytes_;
         };
 
-        explicit NavigationWriter(const ProductBuild& product, PreparedProductFiles& files, IssueCollector& issues,
+        explicit NavigationWriter(const ProductBuild& product, PreparedProductFiles& files, IssueCollector& issues, DocumentChecks& documents,
                                   const SourceContext& context);
         Result<std::string> index(const NavigationIndex& index, std::string title, size_t depth,
                                   std::optional<std::string> filename = std::nullopt);
@@ -78,6 +79,7 @@ namespace MKD::detail
         const ProductBuild& product_;
         PreparedProductFiles& files_;
         IssueCollector& issues_;
+        DocumentChecks& documents_;
         const SourceContext& context_;
         std::filesystem::path contents_;
         std::string directory_;

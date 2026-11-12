@@ -1,3 +1,4 @@
+#include "dictionary/content/document_checks.hpp"
 //
 // kiwakiwaaにより 2026/10/17 に作成されました。
 //
@@ -192,6 +193,7 @@ namespace MKD::detail
 
     void ProductInformationWriter::prepare(const ProductBuild& product, const DictionaryMetadata& metadata,
                                            PreparedProductFiles& files, IssueCollector& issues,
+                                           DocumentChecks& documents,
                                            const SourceContext& context)
     {
         const auto check = [&](Result<void> result, std::string subject)
@@ -207,6 +209,7 @@ namespace MKD::detail
         else
             check(InformationDocument::productPage(product, metadata, files), page);
 
+        documents.document({page, {}, origin("setInformation", page, context)});
         pugi::xml_document document;
         auto root = property_list::root(document, "array");
         auto items = InformationDocument::section(root);
@@ -223,6 +226,7 @@ namespace MKD::detail
                 licensePage.append("pre", license.text);
                 check(licensePage.prepare(product, files, path), path);
             }
+            documents.document({path, {}, origin("setInformation", path, context)});
             InformationDocument::menuItem(items, license.title, path);
         }
         InformationDocument::menuItem(InformationDocument::section(root), monokakido::information::settings);
